@@ -113,8 +113,10 @@ Active match (check-in/out) · Chat · Profile (edit) · Reviews · Notification
 
 ## 5. Non-functional (Phase 1)
 
-- **i18n:** Japanese first, English second; copy externalized so more languages drop in
-  later. (Vietnamese/Indonesian later.)
+- **i18n:** **Japanese is the default locale; a full English translation ships in Phase 1**
+  (100% key parity, CI-enforced). No hardcoded user-facing strings — all copy is keyed
+  (English keys). Backend user-facing text (errors, SMS/push, terms docs) is localized too.
+  Vietnamese/Indonesian come later. See `11-i18n.md` and `adr/0008-i18n-ja-default-en-full.md`.
 - **PWA:** installable, responsive, works on iOS/Android/desktop browsers. Web push for
   notifications where supported; SMS as the reliable fallback for critical alerts.
 - **Security/privacy:** images in Cloud Storage with signed URLs + encryption; least-

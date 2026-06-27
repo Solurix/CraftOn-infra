@@ -13,3 +13,4 @@ silently edit history) and update affected docs.
 | [0005](0005-vertex-ai-gemini.md) | AI via Vertex AI, Gemini models | Accepted |
 | [0006](0006-terraform-iac.md) | Terraform for IaC | Accepted |
 | [0007](0007-auth-firebase-phone.md) | Auth: Firebase phone OTP | Accepted |
+| [0008](0008-i18n-ja-default-en-full.md) | i18n: Japanese default, full English, English dev language | Accepted |

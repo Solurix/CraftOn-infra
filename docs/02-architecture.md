@@ -16,7 +16,8 @@
 | Web hosting | **Cloud Run** (or Firebase Hosting) | Next.js served via Cloud Run for SSR. |
 | Scheduled jobs | **Cloud Scheduler + Cloud Run Jobs** | Visa-expiry check, monthly billing batch. |
 | AI (later) | **Vertex AI — Gemini** | Instruction sheets; abstracted behind an interface so the model is a config var. |
-| Translation (later) | **Cloud Translation API** | Multilingual instructions. |
+| i18n (UI copy) | **`ja` default + full `en`** (e.g. `next-intl`) | Static app copy localized; English keys, Japanese default. Distinct from machine translation below. See `docs/11-i18n.md`. |
+| Translation (later) | **Cloud Translation API** | Machine translation of dynamic supervisor instructions (Phase 3). |
 | Secrets | **Secret Manager** | No secrets in code or repos. |
 | Observability | **Cloud Logging + Monitoring** | Structured logs. |
 | IaC | **Terraform** (GCS remote state) | Everything provisioned as code. See `infra/terraform/`. |

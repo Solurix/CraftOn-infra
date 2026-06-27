@@ -41,6 +41,7 @@ doing anything.**
 | IaC | Terraform, GCS remote state | `docs/adr/0006-terraform-iac.md` |
 | Auth | Firebase Auth (phone OTP) | `docs/adr/0007-auth-firebase-phone.md` |
 | DB | PostgreSQL (Cloud SQL) | `docs/adr/0002-backend-python-fastapi.md` |
+| i18n | App default Japanese; full English; dev language English | `docs/adr/0008-i18n-ja-default-en-full.md` |
 
 To change any of these: write/update an ADR explaining the change, then update every
 doc that referenced the old decision.
@@ -57,9 +58,11 @@ doc that referenced the old decision.
 
 ## Conventions
 
-- **Language of code & docs:** English (identifiers, comments, docs). User-facing
-  copy is Japanese-first (i18n), English second. See `docs/glossary.md` for the
-  Japanese domain terms you will encounter.
+- **Language of code & docs:** English (identifiers, comments, docs, commit messages,
+  and i18n message keys). **App default UI language is Japanese (`ja`)** with a
+  **complete English (`en`) translation** (100% key parity, enforced in CI). Keys are
+  English; default rendered locale is Japanese. See `docs/11-i18n.md` and
+  `docs/glossary.md` (Japanese domain terms).
 - **Money:** integers in **JPY** (no decimals). Never use floats for money.
 - **Time:** store UTC; display Asia/Tokyo. Business rules (e.g. "20:00 night-before
   confirm") are in Asia/Tokyo.

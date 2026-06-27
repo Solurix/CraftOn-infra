@@ -41,6 +41,7 @@ crafton/                  ← you are here (infra + docs + governance)
 | Understand the legal/compliance rules | [`docs/08-compliance-legal.md`](docs/08-compliance-legal.md) |
 | Understand how we test | [`docs/09-testing-strategy.md`](docs/09-testing-strategy.md) |
 | See how repos are organized | [`docs/10-repo-strategy.md`](docs/10-repo-strategy.md) |
+| Understand language / translations | [`docs/11-i18n.md`](docs/11-i18n.md) |
 | Decode a Japanese construction term | [`docs/glossary.md`](docs/glossary.md) |
 | See *why* we chose X | [`docs/adr/`](docs/adr/) |
 
@@ -49,7 +50,8 @@ crafton/                  ← you are here (infra + docs + governance)
 - **Phase:** 0 → 1 (foundation laid; Phase 1 app not yet built).
 - **Decisions locked:** GCP, Terraform, Python/FastAPI backend, Next.js PWA frontend
   (web/PWA first), Vertex AI (Gemini) for AI features, multi-repo, region
-  `asia-northeast1` (Tokyo), launch area Greater Tokyo.
+  `asia-northeast1` (Tokyo), launch area Greater Tokyo. App default language Japanese
+  with full English; development language English.
 - **Next:** create app repos and scaffold the Phase 1 PWA + API per
   [`docs/04-phase-1-spec.md`](docs/04-phase-1-spec.md).
 

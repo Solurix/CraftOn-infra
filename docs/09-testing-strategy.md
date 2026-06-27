@@ -20,6 +20,8 @@ The business rules that protect the model — test these hardest:
 - **Config precedence:** runtime override > env > default.
 - **AuthZ:** role checks on every endpoint (worker can't approve completion, etc.).
 - **Money math:** integer JPY; (Phase 2) withholding `9300` boundary, commission rounding.
+- **i18n completeness:** `ja` and `en` catalogs have identical key sets (no missing/empty
+  values), front-end and back-end. No hardcoded user-facing strings. See `11-i18n.md`.
 
 ## Test layers
 
@@ -41,6 +43,7 @@ The business rules that protect the model — test these hardest:
 
 ## CI gates (per app repo)
 - Lint + type-check (ruff/mypy for Python; eslint/tsc for web).
+- **i18n parity check:** `ja` ↔ `en` key sets match exactly (build fails otherwise).
 - Unit + integration tests pass; migrations apply & reverse.
 - E2E smoke on the core cycle before deploy.
 - Block merge on failure.

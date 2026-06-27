@@ -13,6 +13,7 @@ _Last updated: 2026-06-27_
 - ✅ Detailed Phase 1 spec (`docs/04`).
 - ✅ Data model, API contract, config/flags (`docs/05`–`07`).
 - ✅ Compliance/legal notes, testing strategy, repo strategy, glossary (`docs/08`–`10`, glossary).
+- ✅ i18n policy: Japanese default + full English, English dev language (`docs/11`, ADR 0008).
 - ✅ ADRs for the locked decisions (`docs/adr/`).
 - ✅ Terraform skeleton (`infra/terraform/`) — not yet `apply`-ed (needs GCP project + billing).
 
