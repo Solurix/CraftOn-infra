@@ -114,6 +114,7 @@ matchings 1──* messages     (chat; or keyed by a conversation)
 | platform_fee | integer | not null | P1: flat ¥3,000 (config var) |
 | fee_status | enum | default `unpaid` | `unpaid` \| `paid` (manual in P1) |
 | checked_in_at | timestamptz | null | |
+| completion_requested_at | timestamptz | null | worker tapped "作業完了"; contractor then approves → `completed` |
 | completed_at | timestamptz | null | |
 | withholding_tax | integer | default 0 _(P2)_ | employee route only; computed in P2 |
 | checkin_lat / checkin_lng | numeric | null _(P2)_ | GPS verify in P2 |
