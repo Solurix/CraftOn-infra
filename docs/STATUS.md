@@ -29,7 +29,10 @@ _Last updated: 2026-06-27_
 5. Build Phase 1 features in the order in `docs/04-phase-1-spec.md` §7.
 
 ## Open questions / blockers
-- [ ] GCP project + billing details (blocks `terraform apply`).
+- [~] GCP **dev project created** (`crafton-dev`). Remaining before `terraform apply`:
+  confirm the exact immutable **Project ID** (watch the `crafton` spelling), link a
+  **billing account**, and create a versioned **GCS state bucket** (e.g. `crafton-tfstate-dev`).
+  `crafton-prod` project is created later.
 - [ ] Exact "Greater Tokyo" prefecture list (default: Tokyo, Kanagawa, Saitama, Chiba).
 - [ ] Initial trade list (default: open free-text + suggestions).
 - [ ] Legal sign-off owner for contract/tax/insurance/visa wording (Phase 2 lead time).
