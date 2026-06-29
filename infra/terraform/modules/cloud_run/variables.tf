@@ -50,6 +50,12 @@ variable "secret_env" {
   description = "Map of ENV_VAR_NAME => Secret Manager secret id, mounted as env vars."
 }
 
+variable "cloudsql_instances" {
+  type        = list(string)
+  default     = []
+  description = "Cloud SQL connection names (project:region:instance) to attach via the connector."
+}
+
 variable "allow_public" {
   type        = bool
   default     = false

@@ -1,9 +1,7 @@
-# Remote state in GCS. Create the bucket once (versioned) before `terraform init`.
-# TODO: set the bucket name, then uncomment.
-#
-# terraform {
-#   backend "gcs" {
-#     bucket = "crafton-dev-500709-tfstate" # create this versioned bucket first (globally unique)
-#     prefix = "env/dev"
-#   }
-# }
+# Remote state in GCS. The bucket (versioned) is created once via `make bootstrap-state`.
+terraform {
+  backend "gcs" {
+    bucket = "crafton-dev-500709-tfstate"
+    prefix = "env/dev"
+  }
+}

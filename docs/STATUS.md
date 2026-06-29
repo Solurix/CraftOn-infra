@@ -3,7 +3,37 @@
 > Update this file at the end of every work session. It is the first thing a new GenAI
 > session reads after `CLAUDE.md`.
 
-_Last updated: 2026-06-27_
+_Last updated: 2026-06-29_
+
+## Dev environment — DEPLOYED to GCP ✅ (2026-06-29)
+The `dev` Terraform environment is live in `crafton-dev-500709` (Tokyo), with the
+real app images running on Cloud Run and Cloud SQL connectivity verified:
+- **Web (PWA):** https://crafton-web-dev-r7wu72i7ja-an.a.run.app — `HTTP 200`.
+- **API:** https://crafton-api-dev-r7wu72i7ja-an.a.run.app — `/readyz` →
+  `{"status":"ready","checks":{"database":"ok"}}`; auth-gated routes return 401 as expected.
+- **Cloud SQL** `crafton-dev` (PostgreSQL 16, `db-f1-micro`, ENTERPRISE edition) RUNNABLE;
+  the API reaches it via the Cloud SQL connector + `CRAFTON_DATABASE_URL` from Secret Manager.
+  Alembic migrations run at container boot.
+- **Images** in Artifact Registry `asia-northeast1-docker.pkg.dev/crafton-dev-500709/crafton`
+  (`api:dev`, `web:dev`). Remote TF state in `gs://crafton-dev-500709-tfstate`.
+- **Auth is still `fake`** (`CRAFTON_AUTH_MODE`/`NEXT_PUBLIC_AUTH_MODE`) — real Firebase wiring is the next go-live step.
+- Managed from the **workspace-root `Makefile`** (dockerized Terraform — no local install):
+  `make tf-apply`, `make api-image`/`web-image`, `make gcp-start`/`gcp-stop`/`gcp-status`/`gcp-urls`.
+- Known follow-up: the API's `/healthz` returns a GFE-level 404 (the app registers it; `/readyz`
+  is the working health path and what Cloud Run probes).
+
+### CI/CD — auto-deploy on push to `main` ✅
+Each app repo's `.github/workflows/ci.yml` has a gated `deploy` job (`needs: lint-type-test`,
+only on push to `main`) that builds + pushes the image and rolls the Cloud Run service via
+`gcloud run services update`. Auth is **Workload Identity Federation** (no stored keys):
+- Pool/provider `github-actions/github`, deployer SA `crafton-deployer@…`, trusting
+  `Solurix/CraftOn-api` and `Solurix/CraftOn-web` (Terraform: `environments/dev/cicd.tf`).
+- **API:** migrations run via the container entrypoint (`alembic upgrade head`) on the new
+  revision; Cloud Run gates traffic on readiness, so a failed migration fails the deploy and
+  keeps the old revision serving.
+- **Web:** the job resolves the live API URL and bakes `NEXT_PUBLIC_API_BASE_URL` at build time.
+- **Terraform apply stays manual** (`make tf-apply`); the pipeline never runs Terraform.
+- Images are pushed as both `:dev` (deployed; matches `tfvars`, so no TF drift) and `:<sha>` (rollback).
 
 ## Current phase
 **Phase 1 — feature-complete (dev).** The full cycle works end-to-end:
@@ -66,21 +96,21 @@ PWA (`crafton-web`, step 8) are built and green; happy-path E2E in place (step 9
 - (Phase 1 dev build complete — see "Next up" for deployment + go-live items.)
 
 ## Next up (in order)
-1. **Owner:** link **billing** to `crafton-dev-500709` and create the versioned **GCS
-   state bucket** `crafton-dev-500709-tfstate` (then uncomment `dev/backend.tf`).
+1. ✅ **Billing** linked to `crafton-dev-500709`; versioned **GCS state bucket**
+   `crafton-dev-500709-tfstate` created (`make bootstrap-state`); `dev/backend.tf` wired.
 2. ✅ App repos `crafton-api` and `crafton-web` created by owner.
    ✅ Dev Project ID confirmed (`crafton-dev-500709`) and wired into Terraform.
 3. ✅ Phase 1 app built end-to-end in both repos (steps 1–9 above), pushed to `main`.
-4. **Deploy:** `terraform apply` the `dev` environment (once #1 done); build/push the API +
-   web containers to Cloud Run; wire Cloud SQL, Storage bucket, and the real Firebase project.
+4. ✅ **Deployed:** `terraform apply` of `dev` done; API + web containers built/pushed and
+   running on Cloud Run; Cloud SQL + Storage bucket + Secret Manager wired (Firebase still `fake`).
 5. **Go-live prep:** swap `CRAFTON_AUTH_MODE`/`NEXT_PUBLIC_AUTH_MODE` to `firebase` and wire
    the Firebase web SDK; legal sign-off on the auto-generated terms wording; add app icons.
+6. **Hardening:** lock down API ingress/auth (currently public + `allow_public`), move Cloud SQL
+   to private IP, switch storage to `gcs`, and resolve the `/healthz` GFE-404.
 
 ## Open questions / blockers
-- [~] GCP **dev project** confirmed: **Project ID `crafton-dev-500709`** (number
-  784671749504), wired into `infra/terraform/environments/dev/`. Remaining before
-  `terraform apply`: link a **billing account** and create a versioned **GCS state
-  bucket** (`crafton-dev-500709-tfstate`), then uncomment `backend.tf`.
+- [x] GCP **dev project** `crafton-dev-500709` (number 784671749504) fully bootstrapped:
+  billing linked, state bucket created, `backend.tf` wired, and the env **applied**.
   `crafton-prod` project is created later.
 - [ ] Exact "Greater Tokyo" prefecture list (default: Tokyo, Kanagawa, Saitama, Chiba).
 - [ ] Initial trade list (default: open free-text + suggestions).

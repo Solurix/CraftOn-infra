@@ -10,8 +10,11 @@ resource "google_sql_database_instance" "this" {
 
   settings {
     tier              = var.tier
+    edition           = var.edition
     availability_type = var.availability_type
     disk_autoresize   = true
+    # ALWAYS = running; NEVER = stopped (parked to cut idle cost in dev).
+    activation_policy = var.activation_policy
 
     backup_configuration {
       enabled                        = true

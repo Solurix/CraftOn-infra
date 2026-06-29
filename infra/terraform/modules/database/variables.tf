@@ -44,6 +44,18 @@ variable "public_ip_enabled" {
   description = "Public IP. Prefer false + private IP in prod."
 }
 
+variable "activation_policy" {
+  type        = string
+  default     = "ALWAYS"
+  description = "ALWAYS = running; NEVER = stopped (park to cut idle cost in dev)."
+}
+
+variable "edition" {
+  type        = string
+  default     = "ENTERPRISE"
+  description = "Cloud SQL edition. ENTERPRISE supports shared-core tiers (db-f1-micro); ENTERPRISE_PLUS does not."
+}
+
 variable "deletion_protection" {
   type        = bool
   default     = true

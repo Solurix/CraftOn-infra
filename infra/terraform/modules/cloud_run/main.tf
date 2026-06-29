@@ -38,9 +38,28 @@ resource "google_cloud_run_v2_service" "this" {
           }
         }
       }
+
+      # Cloud SQL unix socket, mounted at /cloudsql/<connection_name>.
+      dynamic "volume_mounts" {
+        for_each = length(var.cloudsql_instances) > 0 ? [1] : []
+        content {
+          name       = "cloudsql"
+          mount_path = "/cloudsql"
+        }
+      }
     }
 
-    # TODO (prod): attach Serverless VPC connector + Cloud SQL connection for private DB.
+    # Attach Cloud SQL instances (uses the built-in Cloud SQL connector; works with
+    # public-IP instances). TODO (prod): prefer private IP + Serverless VPC connector.
+    dynamic "volumes" {
+      for_each = length(var.cloudsql_instances) > 0 ? [1] : []
+      content {
+        name = "cloudsql"
+        cloud_sql_instance {
+          instances = var.cloudsql_instances
+        }
+      }
+    }
   }
 }
 

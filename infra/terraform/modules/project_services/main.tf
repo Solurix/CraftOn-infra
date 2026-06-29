@@ -3,16 +3,18 @@
 
 locals {
   required_services = [
-    "run.googleapis.com",                 # Cloud Run (API + web)
-    "sqladmin.googleapis.com",            # Cloud SQL (PostgreSQL)
-    "storage.googleapis.com",             # Cloud Storage (uploads)
-    "secretmanager.googleapis.com",       # Secret Manager
-    "cloudscheduler.googleapis.com",      # Cloud Scheduler (batch jobs)
-    "artifactregistry.googleapis.com",    # container images
+    "run.googleapis.com",              # Cloud Run (API + web)
+    "sqladmin.googleapis.com",         # Cloud SQL (PostgreSQL)
+    "storage.googleapis.com",          # Cloud Storage (uploads)
+    "secretmanager.googleapis.com",    # Secret Manager
+    "cloudscheduler.googleapis.com",   # Cloud Scheduler (batch jobs)
+    "artifactregistry.googleapis.com", # container images
     "iam.googleapis.com",
-    "cloudtranslate.googleapis.com",      # Cloud Translation (Phase 3)
-    "aiplatform.googleapis.com",          # Vertex AI / Gemini (Phase 3)
-    "firebase.googleapis.com",            # Firebase (Auth/FCM/Firestore)
+    "sts.googleapis.com",            # Workload Identity Federation (token exchange)
+    "iamcredentials.googleapis.com", # SA impersonation for GitHub Actions OIDC
+    "translate.googleapis.com",      # Cloud Translation (Phase 3)
+    "aiplatform.googleapis.com",     # Vertex AI / Gemini (Phase 3)
+    "firebase.googleapis.com",       # Firebase (Auth/FCM/Firestore)
   ]
 }
 
