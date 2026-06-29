@@ -39,7 +39,7 @@ doing anything.**
 | Repos | Multi-repo (not monorepo) | `docs/adr/0003-multi-repo.md` |
 | AI | Vertex AI, **Gemini** models (cheaper than Claude) | `docs/adr/0005-vertex-ai-gemini.md` |
 | IaC | Terraform, GCS remote state | `docs/adr/0006-terraform-iac.md` |
-| Auth | Firebase Auth (phone OTP) | `docs/adr/0007-auth-firebase-phone.md` |
+| Auth | Identifier (username/email/phone) + password login; **API session tokens**; Firebase phone OTP **at registration only** | `docs/adr/0007-auth-firebase-phone.md`, `docs/adr/0009-password-login-session-tokens.md` |
 | DB | PostgreSQL (Cloud SQL) | `docs/adr/0002-backend-python-fastapi.md` |
 | i18n | App default Japanese; full English; dev language English | `docs/adr/0008-i18n-ja-default-en-full.md` |
 

@@ -1,9 +1,10 @@
 # 06 — API Contract (Phase 1)
 
-REST + JSON, served by FastAPI. Base path `/api/v1`. Auth via **Firebase ID token** in
-`Authorization: Bearer <token>`; the API verifies it and loads the `users` row.
-FastAPI auto-generates OpenAPI at `/docs` — that is the **authoritative** schema; this
-file is the human overview, keep them in sync.
+REST + JSON, served by FastAPI. Base path `/api/v1`. Auth via a bearer token in
+`Authorization: Bearer <token>` — normally an **API session token** issued by
+login/registration; at registration only, a **Firebase OTP token**. The API verifies it
+and loads the `users` row. FastAPI auto-generates OpenAPI at `/docs` — that is the
+**authoritative** schema; this file is the human overview, keep them in sync.
 
 Conventions: snake_case JSON; money integer JPY; timestamps ISO-8601 UTC; errors as
 `{ "error": { "code": "...", "message": "..." } }` with appropriate HTTP status.
@@ -11,11 +12,14 @@ Conventions: snake_case JSON; money integer JPY; timestamps ISO-8601 UTC; errors
 ## Auth & session
 | Method | Path | Role | Purpose |
 |---|---|---|---|
-| POST | `/auth/session` | any (valid Firebase token) | Exchange Firebase token for app session / create user on first login |
+| POST | `/auth/session` | valid OTP token | Register on first login (verifies the OTP token; sets username/email/password) or return the existing user. Returns an API session token on creation. |
+| POST | `/auth/login` | public | Returning login: identifier (username/email/phone) + password → API session token. No OTP. |
+| POST | `/auth/password` | self (active) | Set/replace own password. |
 | GET | `/me` | any | Current user + profile + status |
 
-> SMS OTP itself is handled by Firebase Auth on the client; the API only verifies the
-> resulting token.
+> SMS OTP (handled by Firebase on the client) is required **only at registration** to
+> prove phone ownership. Returning logins use identifier + password and the API issues
+> its own signed session token (ADR 0009). Phone stays the canonical identity.
 
 ## Onboarding & profiles
 | Method | Path | Role | Purpose |

@@ -24,13 +24,20 @@ matchings 1──* messages     (chat; or keyed by a conversation)
 | column | type | constraints | notes |
 |---|---|---|---|
 | id | UUID | PK | |
-| phone_number | varchar | unique, not null | Firebase phone; login id |
+| phone_number | varchar | unique, not null | canonical identity; verified by SMS OTP at registration. A login identifier. |
+| username | varchar | unique, not null | login identifier; stored lower-cased (case-insensitive) |
+| email | varchar | unique, not null | login identifier; stored lower-cased (case-insensitive) |
+| password_hash | varchar | nullable | PBKDF2 hash; set at registration. Null for legacy/seeded rows. |
 | user_type | enum | not null | `worker` \| `contractor` \| `admin` |
 | status | enum | default `pending` | `pending` \| `approved` \| `suspended` |
 | display_name | varchar | not null | nickname shown in app |
 | preferred_language | varchar | default `ja` | `ja` \| `en` \| … |
 | created_at | timestamptz | not null | |
 | updated_at | timestamptz | not null | |
+
+> **Login** (ADR 0009): returning users authenticate with any of `username` / `email` /
+> `phone_number` + password; SMS OTP is required only at registration. The API issues a
+> signed session token for subsequent requests.
 
 ## worker_profiles
 | column | type | constraints | notes |
@@ -180,4 +187,5 @@ Defaults come from env/Terraform; admin can override at runtime where it makes s
 - `jobs (status, work_date, prefecture)` for the job-search query.
 - `applications (worker_id, status)`, `matchings (worker_id, status)`,
   `matchings (job_id)`.
-- `users (phone_number)` unique already covers login.
+- `users (phone_number)`, `users (username)`, `users (email)` unique — the three login
+  identifiers.

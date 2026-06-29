@@ -50,6 +50,12 @@ PWA (`crafton-web`, step 8) are built and green; happy-path E2E in place (step 9
 (needs billing + state bucket), real Firebase wiring, and legal sign-off on terms.
 
 ## Done
+- ✅ **Auth reworked (2026-06-29, ADR 0009):** returning login by identifier
+  (username / email / phone) + password → **API-issued HS256 session token**; Firebase
+  phone OTP now **only at registration**. `users` gained unique `username`/`email`
+  (Alembic `a1b2c3d4e5f6`); a bootstrap `admin`/`admin` is seeded by migration
+  (`b2c3d4e5f6a7`) — rotate before prod. API + web updated; all gates green. New env:
+  `CRAFTON_SESSION_SECRET`/`CRAFTON_SESSION_TTL_SECONDS` (`docs/07`).
 - ✅ Product overview, architecture, roadmap agreed (`docs/01`–`03`).
 - ✅ Detailed Phase 1 spec (`docs/04`).
 - ✅ Data model, API contract, config/flags (`docs/05`–`07`).

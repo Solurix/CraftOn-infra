@@ -56,6 +56,16 @@ Precedence: runtime `app_config` override → env var → built-in default.
 | `visa_gate_enabled` | `true` | Non-JP visa gate (keep ON — legal). |
 | `auto_approve_users` | `false` | When ON, finishing onboarding approves the account automatically (no manual vetting); turning it on also clears the existing pending backlog. The non-JP visa gate still applies (a worker who fails it stays pending). Handy for dev/testing. |
 
+## Auth / session (infra-level env settings)
+
+Not in `app_config` (these are app/infra settings read once at startup, like
+`CRAFTON_AUTH_MODE`), but listed here so they aren't hardcoded. See ADR 0009.
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `CRAFTON_SESSION_SECRET` | dev placeholder | HMAC key signing the API's HS256 session tokens. **Must** be a real secret (Secret Manager) in staging/prod. |
+| `CRAFTON_SESSION_TTL_SECONDS` | `604800` (7d) | Lifetime of an issued session token. |
+
 ## Rules for AI sessions
 - Never hardcode any value that appears in this file — read it from config.
 - Adding a new tunable? Add it here **and** to the config mechanism in the same change.

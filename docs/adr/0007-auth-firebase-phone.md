@@ -1,6 +1,11 @@
 # ADR 0007 — Auth: Firebase Auth (phone OTP)
 
-**Status:** Accepted · 2026-06
+**Status:** Accepted · 2026-06 · **amended by [ADR 0009](0009-password-login-session-tokens.md)**
+
+> **Amendment (ADR 0009):** phone OTP is now used **only at registration** to verify
+> phone ownership. Returning users log in with an identifier (username / email / phone)
+> + password, and the API issues its **own signed session token** for subsequent
+> requests rather than verifying a Firebase token each time.
 
 ## Context
 The data model uses phone number as the login identifier. We need SMS OTP, low ops
