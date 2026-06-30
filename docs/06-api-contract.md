@@ -11,11 +11,16 @@ Conventions: snake_case JSON; money integer JPY; timestamps ISO-8601 UTC; errors
 ## Auth & session
 | Method | Path | Role | Purpose |
 |---|---|---|---|
-| POST | `/auth/session` | any (valid Firebase token) | Exchange Firebase token for app session / create user on first login |
+| POST | `/auth/session` | any (valid Firebase token) | Register on first login (OTP + role + username/email/password) or return existing user; returns an API session token |
+| POST | `/auth/login` | any | Returning login: identifier (username/email/phone) + password → session token (no OTP) |
+| POST | `/auth/password` | self | Set/replace own password |
+| POST | `/auth/reset-password` | any (valid Firebase token) | Forgot-password: re-verify phone by OTP, set a new password, return session token |
+| PATCH | `/me/account` | self | Change own login identifiers (username / email) |
 | GET | `/me` | any | Current user + profile + status |
 
-> SMS OTP itself is handled by Firebase Auth on the client; the API only verifies the
-> resulting token.
+> SMS OTP confirms the phone number **only at registration and password reset**
+> (ADR 0009). Returning sign-in is identifier + password with an API-issued
+> session token. Firebase handles the OTP on the client; the API verifies the token.
 
 ## Onboarding & profiles
 | Method | Path | Role | Purpose |
@@ -33,6 +38,7 @@ Conventions: snake_case JSON; money integer JPY; timestamps ISO-8601 UTC; errors
 | POST | `/documents/upload-url` | worker/contractor | Get a signed Cloud Storage upload URL |
 | POST | `/documents` | worker/contractor | Register an uploaded doc (type, path) |
 | GET | `/documents/me` | owner | List own docs + review status |
+| GET | `/documents/{id}/view-url` | owner or admin | Short-lived signed read URL for a doc's bytes (photo display / vetting) |
 
 ## Jobs
 | Method | Path | Role | Purpose |
