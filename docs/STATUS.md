@@ -3,7 +3,7 @@
 > Update this file at the end of every work session. It is the first thing a new GenAI
 > session reads after `CLAUDE.md`.
 
-_Last updated: 2026-06-30_
+_Last updated: 2026-07-01_
 
 ## Dev environment — DEPLOYED to GCP ✅ (2026-06-29)
 The `dev` Terraform environment is live in `crafton-dev-500709` (Tokyo), with the
@@ -34,6 +34,24 @@ only on push to `main`) that builds + pushes the image and rolls the Cloud Run s
 - **Web:** the job resolves the live API URL and bakes `NEXT_PUBLIC_API_BASE_URL` at build time.
 - **Terraform apply stays manual** (`make tf-apply`); the pipeline never runs Terraform.
 - Images are pushed as both `:dev` (deployed; matches `tfvars`, so no TF drift) and `:<sha>` (rollback).
+
+### Per-PR preview environments 🧪 (added 2026-07-01) — see `docs/12-preview-environments.md`
+Every PR on `crafton-api` / `crafton-web` gets a **no-traffic, `--tag pr<N>` Cloud Run
+revision** at a deterministic `https://pr<N>---…` URL, torn down on PR close. Built on
+the runner (like the existing deploy jobs), triggered by `pull_request_target` from
+`main`, same-repo non-draft PRs only.
+- **API:** isolated `crafton_pr<N>` database on the `crafton-dev` instance; the app
+  swaps only the db-name segment via non-secret `CRAFTON_DB_NAME` (still mounts the
+  shared `crafton-db-url` secret). Migrates at boot, serialized by a
+  `pg_advisory_xact_lock` inside Alembic's transaction; smoke test = signup→login→`/me`.
+- **Web:** image baked against the live `crafton-api-dev` URL; no DB.
+- **IAM:** new least-privilege custom role `craftonPreviewDbManager` (create/drop
+  Cloud SQL databases) bound to `crafton-deployer@…` in `environments/dev/cicd.tf`.
+- **Governance:** `.github/CODEOWNERS` in both app repos; `ci.yml` gained an
+  "exactly one migration head" guard.
+- **Owner one-time setup before first use:** `GRANT ALL ON SCHEMA public TO crafton_app`
+  on `template1` (else PG15+ boot migrations fail on the fresh DB); `make tf-apply` to
+  create the role; enable branch protection (require PR + Code Owners + status checks).
 
 ## Current phase
 **Phase 1 — feature-complete (dev).** The full cycle works end-to-end:

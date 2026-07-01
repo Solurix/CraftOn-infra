@@ -30,6 +30,33 @@ resource "google_project_iam_member" "deployer_sa_user" {
   member  = "serviceAccount:${google_service_account.deployer.email}"
 }
 
+# ── Per-PR preview databases ──────────────────────────────────────────────────
+# The preview-deploy workflows create an isolated `crafton_pr<N>` database per PR
+# and drop it on close. That needs Cloud SQL *database* create/delete on the shared
+# `crafton-dev` instance — scoped to exactly those verbs (a least-privilege custom
+# role) rather than the broad roles/cloudsql.admin. The preview revisions still run
+# as the runtime SA (crafton-api-dev@, which already has roles/cloudsql.client), so
+# the deployer needs no instance-level or data-plane access beyond this.
+resource "google_project_iam_custom_role" "preview_db_manager" {
+  project     = var.project_id
+  role_id     = "craftonPreviewDbManager"
+  title       = "CraftOn Preview DB Manager"
+  description = "Create/drop per-PR preview databases on Cloud SQL."
+  permissions = [
+    "cloudsql.databases.create",
+    "cloudsql.databases.delete",
+    "cloudsql.databases.get",
+    "cloudsql.databases.list",
+    "cloudsql.instances.get",
+  ]
+}
+
+resource "google_project_iam_member" "deployer_preview_db" {
+  project = var.project_id
+  role    = google_project_iam_custom_role.preview_db_manager.id
+  member  = "serviceAccount:${google_service_account.deployer.email}"
+}
+
 # ── Workload Identity Federation (GitHub OIDC) ────────────────────────────────
 resource "google_iam_workload_identity_pool" "github" {
   project                   = var.project_id
