@@ -128,6 +128,12 @@ the graph before it can deploy, since previews and prod both migrate at boot).
   attach `--service-account` + `--add-cloudsql-instances` + `--update-secrets`
   explicitly on the preview revision (template inheritance is unreliable → 500s).
 - Cleanup order: remove tag → delete revisions → drop DB.
+- Cloud Run won't delete a service's **latest-created** revision
+  (`FAILED_PRECONDITION`). If a preview was the last deploy, its (untagged,
+  no-traffic, zero-cost) revision lingers until a newer deploy supersedes it — the
+  cleanup step is best-effort and doesn't fail on this. The tag and the per-PR DB
+  (what matters) are always removed. Verified by PR #1: DB `crafton_pr1` dropped,
+  revision left idle.
 - The GitHub bot may lack `actions:write`; run `preview-cleanup` `workflow_dispatch`
   from the Actions tab if a preview leaks.
 
