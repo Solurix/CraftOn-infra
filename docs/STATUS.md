@@ -49,9 +49,13 @@ the runner (like the existing deploy jobs), triggered by `pull_request_target` f
   Cloud SQL databases) bound to `crafton-deployer@…` in `environments/dev/cicd.tf`.
 - **Governance:** `.github/CODEOWNERS` in both app repos; `ci.yml` gained an
   "exactly one migration head" guard.
-- **Owner one-time setup before first use:** `GRANT ALL ON SCHEMA public TO crafton_app`
-  on `template1` (else PG15+ boot migrations fail on the fresh DB); `make tf-apply` to
-  create the role; enable branch protection (require PR + Code Owners + status checks).
+- **Validated end-to-end (2026-07-02):** PR #1 on crafton-api created `crafton_pr1`,
+  deployed a tagged revision that migrated at boot, and passed the signup→login→`/me`
+  smoke test — confirming `crafton_app` can create tables in a fresh DB with **no**
+  `template1` grant (Cloud SQL makes it a `cloudsqlsuperuser`).
+- **Owner one-time setup before first use:** `make tf-apply` (creates the
+  `craftonPreviewDbManager` role — the only hard prerequisite) and enable branch
+  protection (require PR + Code Owners + status checks). No schema grant needed.
 
 ## Current phase
 **Phase 1 — feature-complete (dev).** The full cycle works end-to-end:

@@ -100,22 +100,24 @@ the graph before it can deploy, since previews and prod both migrate at boot).
 
 ## One-time owner setup (not done by the pipeline)
 
-1. **Postgres schema grant.** A fresh `crafton_pr<N>` is cloned from `template1`; on
-   PG15+ the `public` schema no longer grants CREATE to normal roles, so boot
-   migrations as `crafton_app` would fail with *permission denied for schema
-   public*. Fix once so every new DB inherits it:
-   ```sql
-   \c template1
-   GRANT ALL ON SCHEMA public TO crafton_app;
-   ```
-2. **`make tf-apply`** (dev) to create the `craftonPreviewDbManager` role and bind it
-   to `crafton-deployer@…` (Terraform apply stays manual).
-3. **Branch protection on `main`** in both app repos (GitHub UI): require a PR,
+1. **`make tf-apply`** (dev) to create the `craftonPreviewDbManager` role and bind it
+   to `crafton-deployer@…` (Terraform apply stays manual). This is the only hard
+   prerequisite — without it the "Create per-PR database" step can't run.
+2. **Branch protection on `main`** in both app repos (GitHub UI): require a PR,
    require review from Code Owners, required status checks (`lint-type-test`; the API
    also runs the migration-head guard inside that job), no direct pushes.
-4. Because the workflows run from `main` (`pull_request_target`), a pipeline change
+3. Because the workflows run from `main` (`pull_request_target`), a pipeline change
    only takes effect after it's merged — the PR that introduces it can't validate
    itself. App-code PRs take effect immediately (built from PR head).
+
+> **No Postgres schema grant is needed.** Cloud SQL automatically makes users
+> created through its Admin API (`crafton_app`) members of `cloudsqlsuperuser`, and
+> `gcloud sql databases create` makes the new DB owned by that role — so `crafton_app`
+> can create tables in a fresh `crafton_pr<N>`'s `public` schema, and the generic
+> PG15+ "no CREATE on public" restriction never bites. Verified end-to-end by the
+> first preview PR (signup wrote to `crafton_pr1` with no grant). If you ever see
+> *permission denied for schema public*, the one-time fix is
+> `GRANT ALL ON SCHEMA public TO crafton_app;` on `template1`.
 
 ## Gotchas (already handled in the code)
 
