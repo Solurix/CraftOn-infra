@@ -36,10 +36,22 @@ Conventions: snake_case JSON; money integer JPY; timestamps ISO-8601 UTC; errors
 
 Notes:
 - `display_name` is optional everywhere. Signup no longer collects it; on first
-  onboarding the API defaults it to the worker's `full_name` / the contractor's
+  onboarding the API defaults it to the worker's name / the contractor's
   `company_name` (still editable via the PATCH endpoints).
+- Worker names are structured: `family_name` / `given_name` / `middle_name`
+  (middle optional); `full_name` is composed family-first on write.
 - Worker `work_history` entries are `{company, trade, years, description}` —
   `description` is a free-text summary (概要) of the work done there.
+
+## Trades catalog
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| GET | `/trades` | any signed-in | Active trades for the pickers (ja canonical + en label) |
+| GET | `/admin/trades` | admin | Full catalog incl. inactive |
+| POST | `/admin/trades` | admin | Add a trade (name_ja unique) |
+| PATCH | `/admin/trades/{id}` | admin | Rename (rewrites stored occurrences) / toggle active / reorder |
+| GET | `/admin/trades/custom` | admin | User-invented free-text trade values + usage counts |
+| POST | `/admin/trades/merge` | admin | Rewrite a free-text value to a canonical trade on all profiles/jobs (deduplicated) |
 
 ## Documents (upload & vetting)
 | Method | Path | Role | Purpose |
@@ -53,6 +65,7 @@ Notes:
 | Method | Path | Role | Purpose |
 |---|---|---|---|
 | POST | `/jobs` | contractor | Post a job (validates service area) |
+| GET | `/jobs/{id}/photos` | any approved | Signed read URLs for a posting's attached photos |
 | GET | `/jobs` | worker | Search/list open jobs (filters: trade, date, prefecture) |
 | GET | `/jobs/{id}` | any approved | Job detail |
 | PATCH | `/jobs/{id}` | owner contractor | Edit (while `open`) |

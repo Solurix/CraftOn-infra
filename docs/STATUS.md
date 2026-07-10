@@ -5,6 +5,45 @@
 
 _Last updated: 2026-07-10_
 
+## Feedback round 2 ✨ (2026-07-10, same branch)
+Second batch of dev-deployment feedback, all three repos:
+- **Registration validation** (`crafton-web`): per-field inline ja/en messages
+  (username/email/phone/password rules) instead of the server's generic 422;
+  phone entry is a **country-code picker** (+81 default, common worker
+  nationalities) + national number; ApiClient sends `Accept-Language` so API
+  errors localize to the UI language.
+- **Account switcher bug fixed**: "add account" while logged in silently
+  returned the current account (stale state token beat the fresh OTP token in
+  `completeSignup`; `/auth/session` accepts session tokens and idempotently
+  returned the existing user). localStorage now wins; e2e regression test
+  added. "Set a password" card → "Change password".
+- **Structured names** (`crafton-api` + web): family/given/middle columns;
+  `full_name` composed family-first; registration asks 姓/名 (+任意 middle).
+- **Admin-managed trade catalog**: `trades` table (ja canonical + en label,
+  seeded with the 12 picker trades), `GET /trades` for pickers, admin CRUD +
+  custom-value aggregation + **merge** (rewrites profiles/jobs, deduplicated).
+  Admin UI has a Trades tab (add, toggle active, merge/promote user-invented
+  values). Web pickers (worker form + post-job) use the catalog with localized
+  labels; custom entries via chip TagInput.
+- **Slim registration**: work history, qualifications, skills, tools, bio moved
+  out of worker onboarding (added later in profile settings); skills/tools/
+  qualifications now chip inputs (＋/Enter/、･, splits) instead of CSV text.
+- **Night shifts**: end times up to 36:00 in the post-job picker
+  (29:00（翌5:00）style); stored as end ≤ start = next day; all time ranges
+  display in the 24+ convention. Post-job validates inline (end after start,
+  ≤24h, past date, wage, headcount).
+- **Job posting photos**: `jobs.photo_doc_ids` references the contractor's own
+  `job_photo` documents so previously uploaded photos are **reused** (no
+  duplicate GCS objects); `GET /jobs/{id}/photos` serves signed URLs to any
+  approved viewer; photos render on the job detail page.
+- **Photo-upload 500 fixed for Cloud Run**: `GcsStorage` falls back to IAM
+  SignBlob signing when credentials have no private key (the dev deployment's
+  "network" error on Add photo). Needs re-verification on the dev deploy.
+- Gates: API 196 pytest / ruff / mypy; web i18n parity (447 keys) / lint /
+  typecheck / 30 vitest / build / 3 Playwright e2e; feature flows verified in a
+  real browser (slim registration, 21:00–29:00 posting with photo, admin
+  trades tab at 390px).
+
 ## Mobile & registration UX pass ✨ (2026-07-10)
 Feedback round on the dev deployment (mobile admin breakage + registration friction):
 - **Admin on mobile fixed** (`crafton-web`): the tab strip scrolls inside its own
