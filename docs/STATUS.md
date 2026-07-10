@@ -31,6 +31,13 @@ Feedback round on the dev deployment (mobile admin breakage + registration frict
   summary (docs/04 §3.1)._
 - Web OpenAPI snapshot + generated types refreshed; e2e specs updated; all gates
   green in both repos (188 pytest / 30 vitest / 2 Playwright).
+- **iOS/PWA responsiveness hardening**: viewport `maximum-scale=1` +
+  `viewport-fit=cover`, 16px form controls under the `sm` breakpoint (both halves
+  of the iOS input-focus zoom fix), `touch-action: manipulation`, safe-area
+  insets (body sides, bottom nav home-indicator, content clearance), and an
+  initial-only account avatar on phones so the header fits 320px. Headless audit
+  at 320px/390px across landing, login/signup, worker onboarding and all admin
+  tabs: no horizontal overflow.
 
 ## Dev environment — DEPLOYED to GCP ✅ (2026-06-29)
 The `dev` Terraform environment is live in `crafton-dev-500709` (Tokyo), with the
