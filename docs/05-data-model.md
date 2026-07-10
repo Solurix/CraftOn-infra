@@ -91,13 +91,14 @@ matchings 1──* messages     (chat; or keyed by a conversation)
 | contractor_id | UUID | FK→users.id | |
 | trades | text[] | not null | trades needed |
 | work_date | date | not null | |
-| start_time / end_time | time | not null | Asia/Tokyo business time |
+| start_time / end_time | time | not null | Asia/Tokyo business time; **end ≤ start = ends the next day** (night shift, entered as 24+ hours in the UI) |
 | prefecture | varchar | not null | |
 | area | varchar | null | finer area within prefecture |
 | address | varchar | null | full site address (masked until confirm if needed) |
 | daily_wage | integer | not null | JPY |
 | headcount | integer | default 1 | workers needed |
 | notes | text | null | requirements |
+| photo_doc_ids | uuid[] | default `{}` | contractor's own `job_photo` documents attached to the posting (reused across postings — no duplicate storage objects) |
 | status | enum | default `open` | `open` \| `filled` \| `closed` \| `canceled` |
 | created_at / updated_at | timestamptz | | |
 

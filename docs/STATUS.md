@@ -3,7 +3,80 @@
 > Update this file at the end of every work session. It is the first thing a new GenAI
 > session reads after `CLAUDE.md`.
 
-_Last updated: 2026-07-01_
+_Last updated: 2026-07-10_
+
+## Feedback round 2 ✨ (2026-07-10, same branch)
+Second batch of dev-deployment feedback, all three repos:
+- **Registration validation** (`crafton-web`): per-field inline ja/en messages
+  (username/email/phone/password rules) instead of the server's generic 422;
+  phone entry is a **country-code picker** (+81 default, common worker
+  nationalities) + national number; ApiClient sends `Accept-Language` so API
+  errors localize to the UI language.
+- **Account switcher bug fixed**: "add account" while logged in silently
+  returned the current account (stale state token beat the fresh OTP token in
+  `completeSignup`; `/auth/session` accepts session tokens and idempotently
+  returned the existing user). localStorage now wins; e2e regression test
+  added. "Set a password" card → "Change password".
+- **Structured names** (`crafton-api` + web): family/given/middle columns;
+  `full_name` composed family-first; registration asks 姓/名 (+任意 middle).
+- **Admin-managed trade catalog**: `trades` table (ja canonical + en label,
+  seeded with the 12 picker trades), `GET /trades` for pickers, admin CRUD +
+  custom-value aggregation + **merge** (rewrites profiles/jobs, deduplicated).
+  Admin UI has a Trades tab (add, toggle active, merge/promote user-invented
+  values). Web pickers (worker form + post-job) use the catalog with localized
+  labels; custom entries via chip TagInput.
+- **Slim registration**: work history, qualifications, skills, tools, bio moved
+  out of worker onboarding (added later in profile settings); skills/tools/
+  qualifications now chip inputs (＋/Enter/、･, splits) instead of CSV text.
+- **Night shifts**: end times up to 36:00 in the post-job picker
+  (29:00（翌5:00）style); stored as end ≤ start = next day; all time ranges
+  display in the 24+ convention. Post-job validates inline (end after start,
+  ≤24h, past date, wage, headcount).
+- **Job posting photos**: `jobs.photo_doc_ids` references the contractor's own
+  `job_photo` documents so previously uploaded photos are **reused** (no
+  duplicate GCS objects); `GET /jobs/{id}/photos` serves signed URLs to any
+  approved viewer; photos render on the job detail page.
+- **Photo-upload 500 fixed for Cloud Run**: `GcsStorage` falls back to IAM
+  SignBlob signing when credentials have no private key (the dev deployment's
+  "network" error on Add photo). Needs re-verification on the dev deploy.
+- Gates: API 196 pytest / ruff / mypy; web i18n parity (447 keys) / lint /
+  typecheck / 30 vitest / build / 3 Playwright e2e; feature flows verified in a
+  real browser (slim registration, 21:00–29:00 posting with photo, admin
+  trades tab at 390px).
+
+## Mobile & registration UX pass ✨ (2026-07-10)
+Feedback round on the dev deployment (mobile admin breakage + registration friction):
+- **Admin on mobile fixed** (`crafton-web`): the tab strip scrolls inside its own
+  container, action rows wrap, and the app header no longer overflows narrow
+  viewports (`overflow-x: clip` safety net on `body`). Verified at 390px with a
+  headless-browser check (no horizontal scroll).
+- **Design pass**: professional brand blue (`#0a66c2` family), flat neutral canvas
+  (gradient removed), solid white header with logo mark, JP-aware system font
+  stack, icon-only language switcher on phones. Manifest/viewport theme colors
+  updated.
+- **Registration simplified**: signup no longer asks for a display name; the API
+  defaults it on first onboarding (worker → full name, contractor → company
+  name) and it stays editable in profile settings (`crafton-api`
+  `services/onboarding.py`). Role choice is now two descriptive cards.
+- **Prefecture is a picker** (47 canonical romaji values + ja labels,
+  `crafton-web/src/lib/prefectures.ts`) in worker/contractor onboarding, profile
+  settings, post-job, and the jobs filter; stored values stay compatible with
+  `service_area_prefectures`. Display is localized everywhere it's shown.
+- **Worker form (職歴)**: each work-history entry gained a free-text summary
+  (概要, `WorkHistoryEntry.description`, JSON column — no migration) with example
+  placeholder text; comma-separated fields got example placeholders and also
+  split on `、`/`・`; the standalone years-of-experience input was removed
+  (derived from work-history years). _Phase 2+ idea: AI-assisted drafting of the
+  summary (docs/04 §3.1)._
+- Web OpenAPI snapshot + generated types refreshed; e2e specs updated; all gates
+  green in both repos (188 pytest / 30 vitest / 2 Playwright).
+- **iOS/PWA responsiveness hardening**: viewport `maximum-scale=1` +
+  `viewport-fit=cover`, 16px form controls under the `sm` breakpoint (both halves
+  of the iOS input-focus zoom fix), `touch-action: manipulation`, safe-area
+  insets (body sides, bottom nav home-indicator, content clearance), and an
+  initial-only account avatar on phones so the header fits 320px. Headless audit
+  at 320px/390px across landing, login/signup, worker onboarding and all admin
+  tabs: no horizontal overflow.
 
 ## Dev environment — DEPLOYED to GCP ✅ (2026-06-29)
 The `dev` Terraform environment is live in `crafton-dev-500709` (Tokyo), with the

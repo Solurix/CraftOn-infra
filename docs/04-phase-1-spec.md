@@ -37,9 +37,21 @@ Auth is the same for all (phone OTP); role is set at signup and stored on the us
 
 ### 3.1 Signup & onboarding
 1. Enter phone number → receive SMS OTP (Firebase Auth) → verify.
-2. Choose role: worker or contractor.
-3. **Worker onboarding:**
-   - Basic info (display name/nickname, trades, prefecture).
+2. Choose role: worker or contractor (two descriptive role cards).
+   Signup collects **credentials only** (username, email, phone, password) — no
+   display name. The public display name defaults from onboarding (worker →
+   full name, contractor → company name) and stays editable in profile settings.
+3. **Worker onboarding (registration keeps only the essentials):**
+   - Name as structured parts: last / first / optional middle (family-first
+     composition; the display name defaults from it).
+   - Trades from the **admin-managed catalog** (multilingual chips) plus
+     custom chip entries; prefecture is a picker over the 47 canonical values
+     (romaji identifiers used in config/jobs).
+   - Work history (職歴), qualifications, skills, tools and bio are **not part
+     of registration** — they're added later from profile settings. Work
+     history entries are company / trade / years plus a free-text summary
+     (概要); total years-of-experience is derived from them.
+     _Phase 2+ idea: AI-assisted drafting of the summary._
    - **Worker class:** `employee` (employed elsewhere, side job) or `freelance`
      (sole proprietor / 一人親方).
    - Nationality. If non-Japanese: upload residence card (front+back), enter visa
@@ -57,7 +69,11 @@ Auth is the same for all (phone OTP); role is set at signup and stored on the us
 > in Phase 1; the data model supports automating it in Phase 2. See `08-compliance-legal.md`.
 
 ### 3.2 Posting a job (contractor)
-- Fields: trade(s) needed, date, start/end time, site address (prefecture + area),
+- Fields: trade(s) needed (catalog chips + custom), date, start/end time —
+  **night shifts supported**: end times entered on a 24+ clock (e.g.
+  21:00–29:00 = finishes 5:00 next day; stored as end ≤ start), site address
+  (prefecture + area), attached site photos (reusing previously uploaded
+  photos to avoid duplicate storage),
   daily wage (¥), number of workers, notes/requirements.
 - Area must be within the configured service area (Greater Tokyo). Outside → blocked
   with a waitlist message (config-driven; can be disabled).
