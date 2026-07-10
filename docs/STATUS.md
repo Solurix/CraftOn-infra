@@ -3,7 +3,34 @@
 > Update this file at the end of every work session. It is the first thing a new GenAI
 > session reads after `CLAUDE.md`.
 
-_Last updated: 2026-07-01_
+_Last updated: 2026-07-10_
+
+## Mobile & registration UX pass ✨ (2026-07-10)
+Feedback round on the dev deployment (mobile admin breakage + registration friction):
+- **Admin on mobile fixed** (`crafton-web`): the tab strip scrolls inside its own
+  container, action rows wrap, and the app header no longer overflows narrow
+  viewports (`overflow-x: clip` safety net on `body`). Verified at 390px with a
+  headless-browser check (no horizontal scroll).
+- **Design pass**: professional brand blue (`#0a66c2` family), flat neutral canvas
+  (gradient removed), solid white header with logo mark, JP-aware system font
+  stack, icon-only language switcher on phones. Manifest/viewport theme colors
+  updated.
+- **Registration simplified**: signup no longer asks for a display name; the API
+  defaults it on first onboarding (worker → full name, contractor → company
+  name) and it stays editable in profile settings (`crafton-api`
+  `services/onboarding.py`). Role choice is now two descriptive cards.
+- **Prefecture is a picker** (47 canonical romaji values + ja labels,
+  `crafton-web/src/lib/prefectures.ts`) in worker/contractor onboarding, profile
+  settings, post-job, and the jobs filter; stored values stay compatible with
+  `service_area_prefectures`. Display is localized everywhere it's shown.
+- **Worker form (職歴)**: each work-history entry gained a free-text summary
+  (概要, `WorkHistoryEntry.description`, JSON column — no migration) with example
+  placeholder text; comma-separated fields got example placeholders and also
+  split on `、`/`・`; the standalone years-of-experience input was removed
+  (derived from work-history years). _Phase 2+ idea: AI-assisted drafting of the
+  summary (docs/04 §3.1)._
+- Web OpenAPI snapshot + generated types refreshed; e2e specs updated; all gates
+  green in both repos (188 pytest / 30 vitest / 2 Playwright).
 
 ## Dev environment — DEPLOYED to GCP ✅ (2026-06-29)
 The `dev` Terraform environment is live in `crafton-dev-500709` (Tokyo), with the

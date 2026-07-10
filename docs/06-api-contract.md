@@ -34,6 +34,13 @@ Conventions: snake_case JSON; money integer JPY; timestamps ISO-8601 UTC; errors
 | PATCH | `/workers/me` | worker | Edit own profile |
 | PATCH | `/contractors/me` | contractor | Edit own profile |
 
+Notes:
+- `display_name` is optional everywhere. Signup no longer collects it; on first
+  onboarding the API defaults it to the worker's `full_name` / the contractor's
+  `company_name` (still editable via the PATCH endpoints).
+- Worker `work_history` entries are `{company, trade, years, description}` —
+  `description` is a free-text summary (概要) of the work done there.
+
 ## Documents (upload & vetting)
 | Method | Path | Role | Purpose |
 |---|---|---|---|
