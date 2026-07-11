@@ -4,7 +4,9 @@ Every pull request on `crafton-api` and `crafton-web` gets its own deployed prev
 a **no-traffic, tagged Cloud Run revision** reachable at a deterministic URL. The
 **API** preview is backed by its **own isolated database** (`crafton_pr<N>` on the
 shared `crafton-dev` Cloud SQL instance), migrated and smoke-tested in isolation.
-The **web** preview is baked to point at the shared live API. Prod (the live
+The **web** preview is baked to point at the shared live API by default, or — opt-in —
+at a specific **API preview** so a coordinated api+web change previews end-to-end (see
+*Pairing a web preview with an API preview* below). Prod (the live
 revisions and the `crafton` database) is never touched by a PR. On PR close the
 preview and its database are torn down.
 
@@ -25,7 +27,9 @@ PR opened/synchronized
   │     4. smoke test: /openapi.json → signup → login → /me  (against the isolated DB)
   │     5. comment the preview URL + DB name on the PR
   └─ crafton-web  → preview-deploy.yml
-        1. resolve the live crafton-api-dev URL
+        1. resolve the API URL to bake: shared live crafton-api-dev by default, or the
+           paired API preview https://pr<M>---<api-host> if the PR declares api-pr:<M>
+           (label api-pr-<M> or a PR-body line); falls back to live if unreachable
         2. docker build + push  web:pr<N>-<sha>  (NEXT_PUBLIC_API_BASE_URL baked)
         3. gcloud run deploy crafton-web-dev --no-traffic --tag pr<N>
         4. smoke test: GET / → 2xx/3xx ; comment the URL
@@ -39,6 +43,40 @@ PR closed → preview-cleanup.yml → remove tag → delete pr<N> revisions → 
 `gcloud run services describe … --format='value(status.url)'` and prefix `pr<N>---`,
 so the URL is knowable from the PR number — which is what lets the web build bake
 the API URL and the API smoke test hit the preview before any traffic shifts.
+
+## Pairing a web preview with an API preview
+
+By default the web preview bakes the **shared live** `crafton-api-dev` URL — a web-only
+PR doesn't change the API, so it previews against dev. When a change spans **both** repos,
+opt the web PR into its matching API preview so the two isolated revisions talk to each
+other:
+
+- Add either a label **`api-pr-<M>`** or a line **`api-pr: <M>`** to the **web** PR
+  description, where `<M>` is the **crafton-api** PR number. The repos are separate, so the
+  api and web PR numbers differ — name the API PR explicitly (there is no auto-matching).
+- `preview-deploy.yml` parses the hint — in a github-script sandbox, because the PR body is
+  untrusted input — and bakes `https://pr<M>---<api-host>` instead of the live URL. It first
+  polls that preview's `/openapi.json`; if it isn't reachable (API preview not deployed yet,
+  or already torn down) it **falls back to the live API** and says so in the PR comment
+  rather than failing the build. Re-run once the API preview is up.
+- The web preview's own URL is unchanged (`https://pr<N>---<web-host>`, tag `pr<N>`); the PR
+  comment states which API was baked (paired `pr<M>` vs shared live).
+- The trigger includes **`edited`**, so changing the hint in the PR body repoints on the next
+  run without a new commit. The revision suffix carries the run id + attempt to stay unique
+  across same-sha re-deploys (Cloud Run rejects a reused `--revision-suffix`); the stable
+  `pr<N>` tag and the `crafton-web-dev-pr<N>-` cleanup prefix are preserved.
+
+**No API-side change is needed.** `crafton-api` CORS is `allow_origins=["*"]` with
+`allow_credentials=False`, so a browser on any `pr<N>---` web origin can already call any
+`pr<M>---` API preview. The API preview keeps its own isolated `crafton_pr<M>` database, so a
+paired web preview exercises the full isolated stack. (Previews run `CRAFTON_STORAGE_MODE=fake`,
+so cross-origin uploads to the GCS bucket aren't exercised — the bucket's CORS allow-list does
+not need the preview origins.)
+
+Still build-time only: repointing bakes a fresh image (as every web preview already does). A
+follow-up could make the API base URL runtime-configurable (serve it from the server into
+`window.__ENV__`) so one image repoints via a runtime env var with no rebuild — not needed for
+the pairing use-case, so deferred.
 
 ## What lives where
 
