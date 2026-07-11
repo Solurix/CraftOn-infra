@@ -16,7 +16,8 @@ one place. Workers use it for free; contractors (工務店 / site supervisors) p
 
 This is the **`crafton` core repo**: it holds **infrastructure (Terraform),
 documentation, and project-wide "source of truth" material**. Application code
-(backend API, web app) lives in **separate repositories** created later — see
+lives in **separate repositories** — `crafton-api` (FastAPI backend) and
+`crafton-web` (Next.js PWA), both of which exist and are deployed — see
 [`docs/10-repo-strategy.md`](docs/10-repo-strategy.md).
 
 ```
@@ -31,6 +32,7 @@ crafton/                  ← you are here (infra + docs + governance)
 
 | If you want to… | Read |
 |---|---|
+| See what's done / in progress / next | [`docs/STATUS.md`](docs/STATUS.md) |
 | Understand what we're building | [`docs/01-overview.md`](docs/01-overview.md) |
 | See the tech stack & architecture | [`docs/02-architecture.md`](docs/02-architecture.md) |
 | See the build plan / phases | [`docs/03-roadmap.md`](docs/03-roadmap.md) |
@@ -42,18 +44,23 @@ crafton/                  ← you are here (infra + docs + governance)
 | Understand how we test | [`docs/09-testing-strategy.md`](docs/09-testing-strategy.md) |
 | See how repos are organized | [`docs/10-repo-strategy.md`](docs/10-repo-strategy.md) |
 | Understand language / translations | [`docs/11-i18n.md`](docs/11-i18n.md) |
+| Understand per-PR preview deployments | [`docs/12-preview-environments.md`](docs/12-preview-environments.md) |
 | Decode a Japanese construction term | [`docs/glossary.md`](docs/glossary.md) |
 | See *why* we chose X | [`docs/adr/`](docs/adr/) |
 
 ## Current status
 
-- **Phase:** 0 → 1 (foundation laid; Phase 1 app not yet built).
+- **Phase:** 1 — **feature-complete and deployed to dev** (GCP project
+  `crafton-dev-500709`, Cloud Run in `asia-northeast1`); go-live prep remaining.
+  See [`docs/STATUS.md`](docs/STATUS.md) for the live picture.
 - **Decisions locked:** GCP, Terraform, Python/FastAPI backend, Next.js PWA frontend
   (web/PWA first), Vertex AI (Gemini) for AI features, multi-repo, region
   `asia-northeast1` (Tokyo), launch area Greater Tokyo. App default language Japanese
   with full English; development language English.
-- **Next:** create app repos and scaffold the Phase 1 PWA + API per
-  [`docs/04-phase-1-spec.md`](docs/04-phase-1-spec.md).
+- **Next:** go-live prep — real Firebase auth wiring (dev still runs fake auth),
+  an email provider for verification/reset emails, legal sign-off on the terms
+  wording, and hardening (API ingress/auth, private Cloud SQL IP). See
+  [`docs/STATUS.md`](docs/STATUS.md) "Next up".
 
 ## Development philosophy
 

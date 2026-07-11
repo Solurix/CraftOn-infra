@@ -25,8 +25,8 @@ doing anything.**
 
 - **This repo (`crafton`)** = infrastructure (Terraform), docs, governance.
   No application code.
-- **`crafton-api`** (future repo) = FastAPI backend.
-- **`crafton-web`** (future repo) = Next.js PWA frontend.
+- **`crafton-api`** = FastAPI backend (exists; Phase 1 built and deployed to Cloud Run in dev).
+- **`crafton-web`** = Next.js PWA frontend (exists; Phase 1 built and deployed to Cloud Run in dev).
 - See `docs/10-repo-strategy.md` for the full plan, naming, and what goes where.
 
 ## Locked technical decisions (do not silently change)
@@ -53,7 +53,9 @@ doc that referenced the old decision.
 2. Check `docs/STATUS.md` for what's done / in progress / next.
 3. Do the work in the correct repo (see above).
 4. Write/extend tests.
-5. Update `docs/STATUS.md` and any affected docs.
+5. Update `docs/STATUS.md` and any affected docs: refresh "Current state" / "Next up",
+   append your session entry to "Recent sessions", and push older entries down into
+   `docs/CHANGELOG.md` so STATUS stays short.
 6. Commit with a clear message describing *what changed and why*.
 
 ## Conventions
