@@ -117,7 +117,11 @@ the runner (like the existing deploy jobs), triggered by `pull_request_target` f
   swaps only the db-name segment via non-secret `CRAFTON_DB_NAME` (still mounts the
   shared `crafton-db-url` secret). Migrates at boot, serialized by a
   `pg_advisory_xact_lock` inside Alembic's transaction; smoke test = signup→login→`/me`.
-- **Web:** image baked against the live `crafton-api-dev` URL; no DB.
+- **Web:** image baked against the live `crafton-api-dev` URL; no DB. **Opt-in API
+  pairing:** a web PR that declares `api-pr: <M>` (or an `api-pr-<M>` label) bakes the
+  paired API preview `https://pr<M>---<api-host>` instead — so a coordinated api+web
+  change previews end-to-end — with a live-API fallback if that preview isn't reachable
+  (`edited` trigger repoints on a body edit; no API change needed, CORS is already `*`).
 - **IAM:** new least-privilege custom role `craftonPreviewDbManager` (create/drop
   Cloud SQL databases) bound to `crafton-deployer@…` in `environments/dev/cicd.tf`.
 - **Governance:** `.github/CODEOWNERS` in both app repos; `ci.yml` gained an
