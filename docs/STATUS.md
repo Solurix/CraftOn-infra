@@ -3,7 +3,39 @@
 > Update this file at the end of every work session. It is the first thing a new GenAI
 > session reads after `CLAUDE.md`.
 
-_Last updated: 2026-07-10_
+_Last updated: 2026-07-11_
+
+## Fix: dev revision won't start — preview leaked onto the live service 🚑 (2026-07-11)
+`crafton-api-dev` stopped booting after recent deploys. Root cause: the per-PR
+preview pipeline deployed a `--no-traffic --tag pr<N>` **revision of the shared
+service** and set `CRAFTON_DB_NAME=crafton_pr<N>` via `--update-env-vars`. Tags
+don't sandbox config — that call **mutated the shared service's base template**, so
+`CRAFTON_DB_NAME=crafton_pr1` + the `preview-pr` label leaked onto `crafton-api-dev`.
+The next ordinary revision inherited it; once PR #1 closed and `crafton_pr1` was
+dropped, the live service's boot-time `alembic upgrade head` failed with
+`FATAL: database "crafton_pr1" does not exist`, uvicorn never bound `$PORT`, and the
+startup probe failed ("container failed to start and listen on the port").
+
+Fix (branch `claude/revision-startup-issue-zv1suj`, all three repos):
+- **Previews are now standalone per-PR services** `crafton-api-dev-pr<N>` /
+  `crafton-web-dev-pr<N>` (not tagged revisions of the live service), so a preview
+  can never touch prod. `preview-deploy.yml` sets the full runtime config explicitly
+  and `--allow-unauthenticated`; `preview-cleanup.yml` deletes the whole service (+
+  drops `crafton_pr<N>` for the API). No tag/revision dance, no "can't delete latest
+  revision" caveat.
+- **Web pairing** now resolves the paired API preview's own service URL
+  (`crafton-api-dev-pr<M>`), falling back to the live API if unreachable.
+- **Self-heal**: the main-branch `deploy` jobs scrub any historical leak —
+  crafton-api removes `CRAFTON_DB_NAME` + `preview-pr` and re-asserts
+  `STORAGE_MODE=gcs`; crafton-web removes `preview-pr`.
+- Deployer `roles/run.admin` already covers per-PR service create/delete + public
+  IAM, so no infra IAM change was needed. Docs: `docs/12-preview-environments.md`
+  rewritten with a postmortem.
+- **Owner action to unblock the live service now** (pipeline change only prevents
+  recurrence): `gcloud run services update crafton-api-dev --region asia-northeast1
+  --remove-env-vars CRAFTON_DB_NAME --update-env-vars CRAFTON_STORAGE_MODE=gcs
+  --remove-labels preview-pr` (or `make tf-apply` on dev). The next merge to main
+  also self-heals it.
 
 ## Feedback round 2 ✨ (2026-07-10, same branch)
 Second batch of dev-deployment feedback, all three repos:

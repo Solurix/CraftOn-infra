@@ -1,91 +1,134 @@
 # 12 — Per-PR preview environments
 
 Every pull request on `crafton-api` and `crafton-web` gets its own deployed preview:
-a **no-traffic, tagged Cloud Run revision** reachable at a deterministic URL. The
-**API** preview is backed by its **own isolated database** (`crafton_pr<N>` on the
-shared `crafton-dev` Cloud SQL instance), migrated and smoke-tested in isolation.
-The **web** preview is baked to point at the shared live API by default, or — opt-in —
-at a specific **API preview** so a coordinated api+web change previews end-to-end (see
-*Pairing a web preview with an API preview* below). Prod (the live
-revisions and the `crafton` database) is never touched by a PR. On PR close the
-preview and its database are torn down.
+a **standalone, per-PR Cloud Run service** (`crafton-api-dev-pr<N>` /
+`crafton-web-dev-pr<N>`) reachable at its own URL. The **API** preview is backed by
+its **own isolated database** (`crafton_pr<N>` on the shared `crafton-dev` Cloud SQL
+instance), migrated and smoke-tested in isolation. The **web** preview is baked to
+point at the shared live API by default, or — opt-in — at a specific **API preview**
+so a coordinated api+web change previews end-to-end (see *Pairing a web preview with
+an API preview* below). Prod (the live `crafton-api-dev` / `crafton-web-dev` services
+and the `crafton` database) is **never touched** by a PR. On PR close the whole
+preview service (and, for the API, its database) is torn down.
 
 This adapts MuchoKarte's monorepo playbook to CraftOn's **multi-repo** layout. The
 building blocks below note where CraftOn deliberately diverges.
+
+> ## ⚠️ Why a separate service per PR (not a tagged revision)
+>
+> Previews originally deployed a `--no-traffic --tag pr<N>` **revision of the shared
+> live service** and set `CRAFTON_DB_NAME=crafton_pr<N>` via `--update-env-vars`.
+> **That is unsafe.** `--tag`/`--no-traffic` only control *traffic routing* — they do
+> **not** sandbox configuration. `gcloud run deploy <shared-service> --update-env-vars …`
+> mutates the **shared service's base template**, so `CRAFTON_DB_NAME=crafton_pr<N>`
+> and the `preview-pr` label leaked onto `crafton-api-dev`. The next ordinary revision
+> (a merge-to-main deploy, a traffic recreate, a terraform reconcile) **inherited** the
+> leaked template. When the PR closed and `crafton_pr<N>` was dropped, the live service
+> could no longer boot:
+>
+> ```
+> FATAL: database "crafton_pr1" does not exist
+> ```
+>
+> (The API image entrypoint runs `alembic upgrade head` before uvicorn, so a DB it
+> can't reach means uvicorn never binds `$PORT` and every revision fails the startup
+> probe — "container failed to start and listen on the port".)
+>
+> **Fix:** deploy each preview as its **own standalone service**. A dedicated service
+> has its own template, so nothing a preview does can ever touch the live service, and
+> teardown is a single `gcloud run services delete` (no un-tag dance, no "can't delete
+> the latest revision" caveat). This is the model documented below.
 
 ## Mental model
 
 ```
 PR opened/synchronized
   ├─ crafton-api  → preview-deploy.yml (pull_request_target, YAML from main)
-  │     1. gcloud sql databases create crafton_pr<N>      ← isolated DB
+  │     1. gcloud sql databases create crafton_pr<N>          ← isolated DB
   │     2. docker build + push  api:pr<N>-<sha>
-  │     3. gcloud run deploy crafton-api-dev --no-traffic --tag pr<N>
+  │     3. gcloud run deploy crafton-api-dev-pr<N>            ← STANDALONE service
   │          • runtime SA + Cloud SQL instance + crafton-db-url secret attached
-  │          • CRAFTON_DB_NAME=crafton_pr<N>  → app swaps the db-name segment
+  │          • --set-env-vars: full preview env, incl. CRAFTON_DB_NAME=crafton_pr<N>
+  │          • --allow-unauthenticated (reachable like the public dev service)
   │          • migrations run at container BOOT against crafton_pr<N> (advisory-locked)
   │     4. smoke test: /openapi.json → signup → login → /me  (against the isolated DB)
   │     5. comment the preview URL + DB name on the PR
   └─ crafton-web  → preview-deploy.yml
         1. resolve the API URL to bake: shared live crafton-api-dev by default, or the
-           paired API preview https://pr<M>---<api-host> if the PR declares api-pr:<M>
-           (label api-pr-<M> or a PR-body line); falls back to live if unreachable
+           paired API preview service crafton-api-dev-pr<M>'s URL if the PR declares
+           api-pr:<M> (label api-pr-<M> or a PR-body line); falls back to live if
+           unreachable
         2. docker build + push  web:pr<N>-<sha>  (NEXT_PUBLIC_API_BASE_URL baked)
-        3. gcloud run deploy crafton-web-dev --no-traffic --tag pr<N>
+        3. gcloud run deploy crafton-web-dev-pr<N>            ← STANDALONE service
         4. smoke test: GET / → 2xx/3xx ; comment the URL
 
-PR merged → push to main → existing ci.yml `deploy` job (unchanged; prod `crafton` DB)
-PR closed → preview-cleanup.yml → remove tag → delete pr<N> revisions → drop crafton_pr<N> (api only)
+PR merged → push to main → existing ci.yml `deploy` job (prod `crafton` DB); the deploy
+             also scrubs any historical preview leak (see "Self-heal" below)
+PR closed → preview-cleanup.yml → delete crafton-<svc>-dev-pr<N> service → drop crafton_pr<N> (api only)
 ```
 
-**Deterministic URL.** A tagged Cloud Run revision is reachable at
-`https://pr<N>---<service-host>`. The workflows read the live service host with
-`gcloud run services describe … --format='value(status.url)'` and prefix `pr<N>---`,
-so the URL is knowable from the PR number — which is what lets the web build bake
-the API URL and the API smoke test hit the preview before any traffic shifts.
+**Deterministic URL.** Each preview is a normal Cloud Run service, so its URL is read
+with `gcloud run services describe crafton-<svc>-dev-pr<N> --format='value(status.url)'`.
+The API smoke test and the web build's paired-API lookup both resolve the API preview's
+URL this way. (This replaces the old `https://pr<N>---<host>` tag-URL scheme.)
 
 ## Pairing a web preview with an API preview
 
 By default the web preview bakes the **shared live** `crafton-api-dev` URL — a web-only
 PR doesn't change the API, so it previews against dev. When a change spans **both** repos,
-opt the web PR into its matching API preview so the two isolated revisions talk to each
+opt the web PR into its matching API preview so the two isolated services talk to each
 other:
 
 - Add either a label **`api-pr-<M>`** or a line **`api-pr: <M>`** to the **web** PR
   description, where `<M>` is the **crafton-api** PR number. The repos are separate, so the
   api and web PR numbers differ — name the API PR explicitly (there is no auto-matching).
 - `preview-deploy.yml` parses the hint — in a github-script sandbox, because the PR body is
-  untrusted input — and bakes `https://pr<M>---<api-host>` instead of the live URL. It first
-  polls that preview's `/openapi.json`; if it isn't reachable (API preview not deployed yet,
-  or already torn down) it **falls back to the live API** and says so in the PR comment
-  rather than failing the build. Re-run once the API preview is up.
-- The web preview's own URL is unchanged (`https://pr<N>---<web-host>`, tag `pr<N>`); the PR
-  comment states which API was baked (paired `pr<M>` vs shared live).
+  untrusted input — resolves the `crafton-api-dev-pr<M>` **service URL**, and bakes it
+  instead of the live URL. It first polls that preview's `/openapi.json`; if it isn't
+  reachable (API preview not deployed yet, or already torn down) it **falls back to the live
+  API** and says so in the PR comment rather than failing the build. Re-run once the API
+  preview is up.
+- The web preview's own URL is its `crafton-web-dev-pr<N>` service URL; the PR comment states
+  which API was baked (paired `pr<M>` vs shared live).
 - The trigger includes **`edited`**, so changing the hint in the PR body repoints on the next
-  run without a new commit. The revision suffix carries the run id + attempt to stay unique
-  across same-sha re-deploys (Cloud Run rejects a reused `--revision-suffix`); the stable
-  `pr<N>` tag and the `crafton-web-dev-pr<N>-` cleanup prefix are preserved.
+  run without a new commit. Re-deploying just rolls a new revision of the standalone
+  `crafton-web-dev-pr<N>` service (no `--revision-suffix` uniqueness dance needed anymore).
 
 **No API-side change is needed.** `crafton-api` CORS is `allow_origins=["*"]` with
-`allow_credentials=False`, so a browser on any `pr<N>---` web origin can already call any
-`pr<M>---` API preview. The API preview keeps its own isolated `crafton_pr<M>` database, so a
-paired web preview exercises the full isolated stack. (Previews run `CRAFTON_STORAGE_MODE=fake`,
-so cross-origin uploads to the GCS bucket aren't exercised — the bucket's CORS allow-list does
-not need the preview origins.)
+`allow_credentials=False`, so a browser on any preview web origin can already call any
+API preview. The API preview keeps its own isolated `crafton_pr<M>` database, so a paired
+web preview exercises the full isolated stack. (Previews run `CRAFTON_STORAGE_MODE=fake`,
+so cross-origin uploads to the GCS bucket aren't exercised — the bucket's CORS allow-list
+does not need the preview origins.)
 
 Still build-time only: repointing bakes a fresh image (as every web preview already does). A
 follow-up could make the API base URL runtime-configurable (serve it from the server into
 `window.__ENV__`) so one image repoints via a runtime env var with no rebuild — not needed for
 the pairing use-case, so deferred.
 
+## Self-heal on the live service
+
+The main-branch `deploy` job in each app's `ci.yml` scrubs any preview config that may have
+leaked onto the live service **before** the separate-service model existed:
+
+- **crafton-api** `deploy`: `--remove-env-vars CRAFTON_DB_NAME --remove-labels preview-pr`
+  and re-asserts `--update-env-vars CRAFTON_STORAGE_MODE=gcs` (the canonical dev value from
+  `environments/dev/main.tf`). So even a still-wedged live service heals on the next merge to
+  main. These flags are no-ops once the service is clean.
+- **crafton-web** `deploy`: `--remove-labels preview-pr` (web previews never set a DB env, so
+  there's nothing else to scrub).
+
+With previews now on their own services this can't recur; the scrub is a cheap safety net for
+the historical leak and any stray manual `gcloud`.
+
 ## What lives where
 
 | Block | Files | Repo |
 |---|---|---|
 | App plumbing (db-name swap + advisory lock) | `app/core/config.py`, `app/db/session.py`, `migrations/env.py` | crafton-api |
-| Workflows | `.github/workflows/preview-deploy.yml`, `preview-cleanup.yml`; `ci.yml` migration guard | crafton-api, crafton-web |
+| Workflows | `.github/workflows/preview-deploy.yml`, `preview-cleanup.yml`; `ci.yml` (migration guard + self-heal) | crafton-api, crafton-web |
 | Governance | `.github/CODEOWNERS` | crafton-api, crafton-web |
-| IAM | `infra/terraform/environments/dev/cicd.tf` (custom `craftonPreviewDbManager` role) | crafton-infra |
+| IAM | `infra/terraform/environments/dev/cicd.tf` (`craftonPreviewDbManager` role; deployer `roles/run.admin` covers per-PR service create/delete + public IAM) | crafton-infra |
 
 ## Block A — app plumbing (crafton-api)
 
@@ -100,7 +143,7 @@ and socket/host are preserved). `db/session.py` and `migrations/env.py` build fr
 `migrations/env.py` takes a **transaction-scoped advisory lock as the first
 statement inside** Alembic's transaction (`pg_advisory_xact_lock(727274)`). This
 serializes concurrent migrators — e.g. multiple Cloud Run instances cold-starting
-the same preview revision — so they can't corrupt the schema. It must be **inside**
+the same preview service — so they can't corrupt the schema. It must be **inside**
 `context.begin_transaction()`: running any statement before it makes SQLAlchemy
 autobegin a transaction that Alembic never commits, and on a fresh DB all the DDL
 silently rolls back. The lock is per-database, so prod and each `crafton_pr<N>` lock
@@ -110,18 +153,22 @@ independently, and it also hardens the existing prod migrate-at-boot.
 
 `pull_request_target` runs the workflow **and its credentialed steps from `main`**,
 guarded to **same-repo, non-draft** PRs (fork PRs can't mint a WIF token and are
-skipped). The isolated DB, the `--no-traffic --tag pr<N>` revision, and the
-smoke/cleanup steps follow the mental model above. Cleanup is best-effort and
-**ordered**: remove the tag → delete the `crafton-<svc>-pr<N>-*` revisions → drop
-`crafton_pr<N>` (removing the tag before the revision is required, or the delete
-fails). Cleanup also exposes `workflow_dispatch` (input `pr_number`) so the owner
-can reclaim a leaked preview from the Actions tab.
+skipped). The isolated DB, the standalone `crafton-<svc>-dev-pr<N>` service, and the
+smoke/cleanup steps follow the mental model above. Cleanup is best-effort: delete the
+per-PR **service** (revisions and all), then drop `crafton_pr<N>` (API only). There is
+no ordering constraint anymore (no tag to remove first). Cleanup also exposes
+`workflow_dispatch` (input `pr_number`) so the owner can reclaim a leaked preview from
+the Actions tab.
 
-`ci.yml` gains an **"exactly one migration head"** guard (two heads → rebase/merge
-the graph before it can deploy, since previews and prod both migrate at boot).
+`ci.yml` keeps the **"exactly one migration head"** guard (two heads → rebase/merge
+the graph before it can deploy, since previews and prod both migrate at boot) and adds
+the **self-heal** scrub described above.
 
 ## CraftOn-specific divergences from the MuchoKarte playbook
 
+- **Separate service per PR, not a tagged revision.** A tagged revision shares the live
+  service's mutable template and leaks preview config onto prod (the incident above).
+  CraftOn isolates each preview in its own `crafton-<svc>-dev-pr<N>` service.
 - **Runner build, not Cloud Build.** CraftOn's existing deploy jobs `docker build`
   on the GitHub runner and `gcloud run …`; the previews do the same for consistency.
   Trade-off: the PR's Dockerfile runs on a runner holding the WIF token — accepted
@@ -129,7 +176,7 @@ the graph before it can deploy, since previews and prod both migrate at boot).
   `**/Dockerfile`. (Revisit — adopt Cloud Build's build-SA isolation — before taking
   outside contributors.)
 - **Migrate at container boot, not a separate migrate job.** CraftOn's API image
-  entrypoint is `alembic upgrade head && uvicorn`, so the preview revision migrates
+  entrypoint is `alembic upgrade head && uvicorn`, so the preview service migrates
   itself against `crafton_pr<N>`; the advisory lock covers multi-instance races.
 - **Empty preview DB (no prod clone).** Dev uses fake auth, so the smoke test's own
   signup seeds what it needs. No PII is copied into previews.
@@ -140,7 +187,9 @@ the graph before it can deploy, since previews and prod both migrate at boot).
 
 1. **`make tf-apply`** (dev) to create the `craftonPreviewDbManager` role and bind it
    to `crafton-deployer@…` (Terraform apply stays manual). This is the only hard
-   prerequisite — without it the "Create per-PR database" step can't run.
+   prerequisite for the DB step. The deployer's existing `roles/run.admin` already
+   covers creating/deleting per-PR services and setting their public (`allUsers`
+   invoker) IAM, so no extra role is needed for the service side.
 2. **Branch protection on `main`** in both app repos (GitHub UI): require a PR,
    require review from Code Owners, required status checks (`lint-type-test`; the API
    also runs the migration-head guard inside that job), no direct pushes.
@@ -152,26 +201,24 @@ the graph before it can deploy, since previews and prod both migrate at boot).
 > created through its Admin API (`crafton_app`) members of `cloudsqlsuperuser`, and
 > `gcloud sql databases create` makes the new DB owned by that role — so `crafton_app`
 > can create tables in a fresh `crafton_pr<N>`'s `public` schema, and the generic
-> PG15+ "no CREATE on public" restriction never bites. Verified end-to-end by the
-> first preview PR (signup wrote to `crafton_pr1` with no grant). If you ever see
+> PG15+ "no CREATE on public" restriction never bites. If you ever see
 > *permission denied for schema public*, the one-time fix is
 > `GRANT ALL ON SCHEMA public TO crafton_app;` on `template1`.
 
 ## Gotchas (already handled in the code)
 
+- **Never `gcloud run deploy` preview config onto a shared service** — even with
+  `--no-traffic --tag`, it mutates the shared template and leaks onto prod. Previews
+  are their own services precisely to make this impossible.
 - Advisory lock **inside** the Alembic transaction, first statement.
 - Liveness polls **`/openapi.json`**, not `/healthz` (GFE returns 404 for `/healthz`
   on `*.run.app` — see STATUS.md).
-- `--update-env-vars` (merge), not `--set-env-vars` (wipes the rest of the env);
-  attach `--service-account` + `--add-cloudsql-instances` + `--update-secrets`
-  explicitly on the preview revision (template inheritance is unreliable → 500s).
-- Cleanup order: remove tag → delete revisions → drop DB.
-- Cloud Run won't delete a service's **latest-created** revision
-  (`FAILED_PRECONDITION`). If a preview was the last deploy, its (untagged,
-  no-traffic, zero-cost) revision lingers until a newer deploy supersedes it — the
-  cleanup step is best-effort and doesn't fail on this. The tag and the per-PR DB
-  (what matters) are always removed. Verified by PR #1: DB `crafton_pr1` dropped,
-  revision left idle.
+- A standalone service has **no shared template to inherit**, so the preview deploy
+  sets the full runtime config explicitly (`--set-env-vars`, `--service-account`,
+  `--add-cloudsql-instances`, `--set-secrets`, `--allow-unauthenticated`).
+- Cleanup deletes the whole **service** — no tag/revision ordering, and no "can't
+  delete a service's latest-created revision" (`FAILED_PRECONDITION`) caveat, both of
+  which the old tagged-revision scheme had to work around.
 - The GitHub bot may lack `actions:write`; run `preview-cleanup` `workflow_dispatch`
   from the Actions tab if a preview leaks.
 
@@ -179,6 +226,7 @@ the graph before it can deploy, since previews and prod both migrate at boot).
 
 `crafton-dev-500709` (#784671749504) · `asia-northeast1` · Cloud SQL `crafton-dev`
 (user `crafton_app`, prod DB `crafton`, previews `crafton_pr<N>`) · AR repo
-`crafton` · services `crafton-api-dev` / `crafton-web-dev` · runtime SA
-`crafton-api-dev@…` · deployer SA `crafton-deployer@…` · WIF
-`github-actions/github` · secret `crafton-db-url` · advisory-lock key `727274`.
+`crafton` · live services `crafton-api-dev` / `crafton-web-dev` · preview services
+`crafton-api-dev-pr<N>` / `crafton-web-dev-pr<N>` · runtime SA `crafton-api-dev@…` ·
+deployer SA `crafton-deployer@…` · WIF `github-actions/github` · secret
+`crafton-db-url` · advisory-lock key `727274`.
