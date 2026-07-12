@@ -57,7 +57,7 @@ Notes:
 | Method | Path | Role | Purpose |
 |---|---|---|---|
 | POST | `/documents/upload-url` | worker/contractor | Get a signed Cloud Storage upload URL |
-| POST | `/documents` | worker/contractor | Register an uploaded doc (type, path) |
+| POST | `/documents` | worker/contractor | Register an uploaded doc (type, path). Identity/compliance docs start `pending` (reviewed as part of account vetting); **work photos (`job_photo`) register as `approved`** — they're post-moderated (an admin can reject = hide one later), not review-gated |
 | GET | `/documents/me` | owner | List own docs + review status |
 | GET | `/documents/{id}/view-url` | owner or admin | Short-lived signed read URL for a doc's bytes (photo display / vetting) |
 
