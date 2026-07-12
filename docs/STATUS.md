@@ -47,6 +47,23 @@ All locked decisions are in `docs/adr/`. Summary table in `CLAUDE.md`.
 
 ## Recent sessions
 
+### 2026-07-12 — Job editing, check-in window, approval fixes, dark mode 🌙
+`crafton-api`: PATCH /jobs/{id} now enforces `job_edit_cutoff_hours` (12h default),
+a terms lock once workers are confirmed (headcount floor incl.), and notifies
+pending applicants on term changes. Check-in is time-gated
+(`checkin_open_minutes_before_start`, 120 default) — previously a worker could
+check in and complete a job days before the work date, recording the fee.
+Vetting fixes: unsuspend no longer force-approves unvetted users (visa-gate
+bypass), rejected residence cards no longer satisfy the gate, job photos are
+excluded from blanket doc review, auto-approve retries on profile PATCH.
+`crafton-web`: contractors edit open jobs from my-jobs (diff-only PATCH); dark
+mode hover/focus/active states overhauled; `/me` refreshes on focus + polls
+while pending (approval reaches the app without reload); non-JP workers can
+re-upload residence cards from profile; admin Users tab shows per-doc review
+status. Verified on the deployed PR previews with real accounts (full cycle,
+masking, gates, GCS signed upload/read on live dev). Gates: 241 pytest / 42
+vitest, all green.
+
 ### 2026-07-11 — Repo cleanup & AI-session ergonomics pass 🧹
 All three repos: index docs added for cheaper future sessions (`docs/README.md` +
 slimmed `STATUS.md` with history in `CHANGELOG.md` here; `docs/MAP.md` in both app

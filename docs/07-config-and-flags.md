@@ -26,7 +26,9 @@ Precedence: runtime `app_config` override → env var → built-in default.
 | `spot_plan_commission_rate` | `0.25` _(P3)_ | Phase 3 spot plan. |
 | `withholding_threshold_jpy` | `9300` _(P2)_ | Below this, no withholding (丙欄). |
 | `noshow_confirm_hour_local` | `20` | Night-before confirm deadline (Asia/Tokyo). _(reminders P2)_ |
+| `job_edit_cutoff_hours` | `12` | Contractors cannot edit a job within this many hours before its start (`work_date` + `start_time`, Asia/Tokyo) or after it. `0` disables the window. |
 | `noshow_morning_lead_minutes` | `120` | "Departed" button lead time. _(P2)_ |
+| `checkin_open_minutes_before_start` | `120` | Worker check-in opens this many minutes before the job's start (`work_date` + `start_time`, Asia/Tokyo) and closes at the shift's end (`end_time` ≤ `start_time` = overnight, ends next day). `0`/negative disables the check. |
 | `checkin_radius_meters` | `500` | GPS check-in radius. _(GPS verify P2)_ |
 | `weekly_work_hours_cap` | `null` (no cap) | Optional weekly cap; null = permissive. |
 | `student_visa_weekly_hours` | `28` _(P2)_ | Legal cap for restricted visas; enforced P2. |
