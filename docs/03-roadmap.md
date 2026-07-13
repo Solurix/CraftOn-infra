@@ -3,7 +3,7 @@
 Principle: **ship a working app first, then add logic gradually.** Each phase is
 independently shippable. Don't pull later-phase features forward.
 
-## Phase 0 — Foundation (this repo) ✅ in progress
+## Phase 0 — Foundation (this repo) ✅ done
 
 - Documentation set (this `docs/` tree).
 - Terraform skeleton for GCP.
@@ -11,7 +11,7 @@ independently shippable. Don't pull later-phase features forward.
 
 **Exit criteria:** docs agreed; infra skeleton present; ready to create app repos.
 
-## Phase 1 — Working PWA (the MVP)
+## Phase 1 — Working PWA (the MVP) ✅ built & deployed to dev; go-live pending
 
 Goal: a real, usable web/PWA app that lets a contractor post a job, a worker apply, get
 confirmed, check in/out, and leave reviews — within Greater Tokyo. **No in-app payment**

@@ -9,8 +9,8 @@ governance; application code lives elsewhere.
 ## Decision
 Use **multiple repositories**:
 - `crafton` — infra (Terraform), docs, governance (this repo).
-- `crafton-api` — FastAPI backend (to create).
-- `crafton-web` — Next.js PWA (to create).
+- `crafton-api` — FastAPI backend (exists).
+- `crafton-web` — Next.js PWA (exists).
 - `crafton-mobile` — Flutter (later, only if needed).
 
 ## Consequences

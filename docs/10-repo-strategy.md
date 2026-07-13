@@ -8,8 +8,8 @@ We use **multiple repos** (not a monorepo), per project decision
 | Repo | Purpose | Status | Main tech |
 |---|---|---|---|
 | **`crafton`** (this one) | Infra (Terraform), docs, governance, project source-of-truth | ✅ exists | Terraform, Markdown |
-| **`crafton-api`** | Backend API | ⏳ to create | Python, FastAPI, SQLAlchemy, Alembic, pytest |
-| **`crafton-web`** | Web/PWA frontend (workers + contractors + admin) | ⏳ to create | Next.js, TypeScript, React |
+| **`crafton-api`** | Backend API | ✅ exists | Python, FastAPI, SQLAlchemy, Alembic, pytest |
+| **`crafton-web`** | Web/PWA frontend (workers + contractors + admin) | ✅ exists | Next.js, TypeScript, React |
 | **`crafton-mobile`** | Native app (Flutter) — only if/when PWA limits require it | 🅿️ later | Flutter/Dart |
 
 > Admin UI: Phase 1 lives inside `crafton-web` (a gated `/admin` area) to avoid a 4th repo

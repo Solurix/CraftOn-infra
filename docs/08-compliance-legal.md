@@ -31,8 +31,10 @@
   work-restriction flag, "verified on X by Y") over the raw image. If images are kept:
   encrypt, least-privilege access, lifecycle/retention policy.
 - **Hard gate (enforced from MVP):** a non-JP worker cannot be approved/confirmed
-  without residence card on file + a non-expired visa. P1 = manual admin check; P2 =
-  automated via eKYC + a nightly visa-expiry job that locks expired accounts.
+  without residence card on file + a non-expired visa. Card documents that an admin
+  **rejected do not count** — a rejected card is treated as no card until re-uploaded.
+  P1 = manual admin check; P2 = automated via eKYC + a nightly visa-expiry job that
+  locks expired accounts.
 
 ## Available APIs (for Phase 2 integration)
 

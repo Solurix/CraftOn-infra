@@ -3,9 +3,17 @@
 Infrastructure-as-code for GCP (region `asia-northeast1`, Tokyo). See
 `../../docs/adr/0006-terraform-iac.md` and `../../docs/02-architecture.md`.
 
-> **Status: skeleton.** Not yet `apply`-able — needs a GCP project + billing account and
-> the remote-state bucket (see "First-time setup"). It compiles structurally; fill in the
-> blanks marked `TODO` and the `terraform.tfvars` per environment.
+> **Status:**
+> - **`dev` — applied and live.** GCP project `crafton-dev-500709` (Tokyo); remote state
+>   in the versioned bucket `gs://crafton-dev-500709-tfstate` (`environments/dev/backend.tf`).
+>   The real app images run on Cloud Run with Cloud SQL, Storage, and Secret Manager wired.
+> - **`prod` — still a skeleton.** Never applied, and it has **drifted from dev** — see the
+>   warning block at the top of `environments/prod/main.tf` before the first apply.
+>
+> Day-to-day operations go through the **workspace-root `Makefile`** (dockerized
+> Terraform — no local install needed): `make tf-apply` (plan+apply dev), plus
+> `make api-image` / `make web-image` and `make gcp-start` / `gcp-stop` / `gcp-status`
+> / `gcp-urls`.
 
 ## Layout
 
@@ -38,6 +46,16 @@ variables and its own remote state.
    terraform plan
    terraform apply
    ```
+
+## CI/CD & preview infra
+
+`environments/dev/cicd.tf` holds the deployment plumbing for the app repos:
+**Workload Identity Federation** (pool/provider `github-actions/github`, no stored
+keys), the deployer service account `crafton-deployer@…`, and the least-privilege
+custom role `craftonPreviewDbManager` (create/drop Cloud SQL databases for per-PR
+preview environments). Per-PR previews themselves are documented in
+[`../../docs/12-preview-environments.md`](../../docs/12-preview-environments.md).
+Terraform apply stays **manual** (`make tf-apply`); the CI pipeline never runs Terraform.
 
 ## Notes
 - **Firebase** (Auth, FCM, Firestore) is only partially Terraform-able. Create/enable the

@@ -1,5 +1,7 @@
 # Architecture Decision Records (ADRs)
 
+↩ Back to the [docs index](../README.md).
+
 Short records of significant, hard-to-reverse decisions. Format: Context → Decision →
 Consequences. To change a decision, add a new ADR that supersedes the old one (don't
 silently edit history) and update affected docs.

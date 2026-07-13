@@ -57,7 +57,7 @@ Notes:
 | Method | Path | Role | Purpose |
 |---|---|---|---|
 | POST | `/documents/upload-url` | worker/contractor | Get a signed Cloud Storage upload URL |
-| POST | `/documents` | worker/contractor | Register an uploaded doc (type, path) |
+| POST | `/documents` | worker/contractor | Register an uploaded doc (type, path). Identity/compliance docs start `pending` (reviewed as part of account vetting); **work photos (`job_photo`) register as `approved`** — they're post-moderated (an admin can reject = hide one later), not review-gated |
 | GET | `/documents/me` | owner | List own docs + review status |
 | GET | `/documents/{id}/view-url` | owner or admin | Short-lived signed read URL for a doc's bytes (photo display / vetting) |
 
@@ -68,7 +68,7 @@ Notes:
 | GET | `/jobs/{id}/photos` | any approved | Signed read URLs for a posting's attached photos |
 | GET | `/jobs` | worker | Search/list open jobs (filters: trade, date, prefecture) |
 | GET | `/jobs/{id}` | any approved | Job detail |
-| PATCH | `/jobs/{id}` | owner contractor | Edit (while `open`) |
+| PATCH | `/jobs/{id}` | owner contractor | Edit (while `open`). Rules: blocked within `job_edit_cutoff_hours` of start or after it (409 `job_edit_window_closed`); once any non-canceled matching exists, only notes/photos/headcount **increases** are editable (409 `job_terms_locked`) and headcount can never drop below the active matchings (409 `job_headcount_below_confirmed`); core-term changes notify pending applicants (`job_updated`) |
 | POST | `/jobs/{id}/cancel` | owner contractor | Cancel job |
 | GET | `/jobs/mine` | contractor | Contractor's own jobs |
 
@@ -87,7 +87,7 @@ Notes:
 |---|---|---|---|
 | GET | `/matchings/mine` | worker/contractor | Active & past matchings |
 | GET | `/matchings/{id}` | participant | Matching detail |
-| POST | `/matchings/{id}/check-in` | worker | Mark arrived (timestamp; GPS optional, P2) |
+| POST | `/matchings/{id}/check-in` | worker | Mark arrived (timestamp; GPS optional, P2). 409 `checkin_too_early` before the `checkin_open_minutes_before_start` window opens; 409 `checkin_window_closed` after the shift's end (Asia/Tokyo) |
 | POST | `/matchings/{id}/complete-request` | worker | Worker marks work done |
 | POST | `/matchings/{id}/approve-completion` | contractor | Approve → `completed`, record fee owed |
 | POST | `/matchings/{id}/cancel` | participant | Cancel (records reason; `noshow` is admin/auto in P2) |
