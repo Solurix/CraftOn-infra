@@ -1,0 +1,434 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  /* Brand + surface tokens — kept in sync with tailwind.config.ts `brand`. */
+  --brand: #0a66c2;
+  --brand-dark: #084e96;
+  --brand-soft: #eaf2fb;
+  --ring: rgba(10, 102, 194, 0.3);
+}
+
+html {
+  /* JP-aware system stack: crisp Latin + proper Japanese sans everywhere
+     without shipping a webfont. */
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP",
+    "Yu Gothic UI", Meiryo, sans-serif;
+  /* iOS Safari inflates text in landscape without this. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  @apply bg-gray-100 text-gray-900 antialiased;
+  /* Safety net: a single overflowing element must never let the whole page
+     pan sideways on a phone (clip doesn't create a scroll container). */
+  overflow-x: clip;
+  /* With viewport-fit=cover (PWA standalone), keep content clear of the
+     notch/home-indicator edges in landscape. Insets are 0 elsewhere. */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Remove the double-tap-to-zoom delay/surprise on interactive elements —
+   taps feel immediate and iOS never zooms because of a fast second tap. */
+button,
+a,
+label,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+/* iOS Safari zooms the whole page when focusing a form control rendered
+   smaller than 16px. On touch-sized screens force controls to 16px (desktop
+   keeps the compact 14px). !important so no text-* utility reintroduces it. */
+@media (max-width: 639px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
+  }
+  .btn:focus-visible {
+    @apply outline-none ring-2 ring-offset-1;
+    --tw-ring-color: var(--ring);
+  }
+  .btn-primary {
+    @apply btn bg-brand text-white shadow-sm hover:bg-brand-dark hover:shadow;
+  }
+  .btn-secondary {
+    @apply btn border border-gray-300 bg-white text-gray-800 hover:border-gray-400 hover:bg-gray-50;
+  }
+  .btn-danger {
+    @apply btn border border-red-300 bg-white text-red-700 hover:bg-red-50;
+  }
+  .btn-ghost {
+    @apply btn text-gray-600 hover:bg-gray-100 hover:text-gray-900;
+  }
+  /* Compact button (table rows, inline actions). */
+  .btn-sm {
+    @apply rounded-lg px-2.5 py-1 text-xs;
+  }
+  /* A tasteful inline text link — replaces the old underline-blue links. */
+  .link {
+    @apply font-medium text-brand underline-offset-2 transition hover:underline;
+  }
+
+  .card {
+    @apply rounded-xl border border-gray-200 bg-white p-4 shadow-sm;
+  }
+  /* An interactive card (links, list rows) — lifts gently on hover. */
+  .card-hover {
+    @apply transition-all duration-150 hover:-translate-y-0.5 hover:border-brand/60 hover:shadow-md;
+  }
+
+  .field-label {
+    @apply mb-1 block text-sm font-medium text-gray-700;
+  }
+  .field-input {
+    @apply w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm transition focus:border-brand focus:outline-none focus:ring-2;
+  }
+  .field-input:focus {
+    --tw-ring-color: var(--ring);
+  }
+
+  /* Pill chips (filters, tags, nav). */
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-sm text-gray-700 transition hover:bg-gray-100;
+  }
+  .chip-active {
+    @apply border-brand bg-brand text-white hover:bg-brand-dark;
+  }
+
+  /* Loading skeleton block — animated shimmer. */
+  .skeleton {
+    @apply rounded-md bg-gray-200/80;
+    background-image: linear-gradient(
+      90deg,
+      rgba(229, 231, 235, 0) 0%,
+      rgba(255, 255, 255, 0.7) 50%,
+      rgba(229, 231, 235, 0) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.toast-in {
+  animation: toast-in 0.18s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+  .btn,
+  .card-hover {
+    transition: none;
+  }
+  .toast-in {
+    animation: none;
+  }
+}
+
+/* Skip-to-content link — visible only when focused (keyboard users). */
+.skip-link {
+  @apply sr-only;
+}
+.skip-link:focus {
+  @apply not-sr-only fixed left-3 top-3 z-50 rounded-md bg-brand px-3 py-2 text-sm font-medium text-white shadow-lg;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Dark theme. Applied via the `dark` class on <html> (see lib/theme.tsx). To
+   keep dark mode consistent across every page without touching each file, the
+   common neutral Tailwind utilities are remapped here once. `.dark .x` (0,2,0)
+   outranks the base utility `.x` (0,1,0), so these win wherever they're used.
+   Hover variants compile to separate classes (`.hover\:bg-gray-100:hover`), so
+   every hover utility used in the app gets its own remap below — otherwise
+   hovering paints the light colour onto a dark surface. Brand and status
+   accents get dark-legible equivalents (lighter tints on translucent
+   backgrounds) rather than being left at their light values.
+   ──────────────────────────────────────────────────────────────────────── */
+:root.dark {
+  color-scheme: dark;
+  --brand: #4d8bf5;
+  --brand-soft: #1e293b;
+  --ring: rgba(96, 165, 250, 0.45);
+}
+.dark body {
+  @apply bg-slate-950 text-slate-100;
+}
+
+.dark .bg-white {
+  background-color: #0f172a;
+}
+.dark .bg-gray-50 {
+  background-color: #0b1220;
+}
+.dark .bg-gray-100 {
+  background-color: #1e293b;
+}
+.dark .bg-gray-200 {
+  background-color: #334155;
+}
+.dark .text-gray-900 {
+  color: #f1f5f9;
+}
+.dark .text-gray-800 {
+  color: #e2e8f0;
+}
+.dark .text-gray-700 {
+  color: #cbd5e1;
+}
+.dark .text-gray-600 {
+  color: #b0bccd;
+}
+.dark .text-gray-500 {
+  color: #94a3b8;
+}
+.dark .text-gray-400 {
+  color: #7c8aa0;
+}
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-200\/80 {
+  border-color: #243045;
+}
+.dark .border-gray-300 {
+  border-color: #334155;
+}
+.dark .card {
+  @apply border-slate-800 bg-slate-900;
+}
+.dark .field-input {
+  @apply border-slate-700 bg-slate-900 text-slate-100;
+}
+.dark .btn-secondary {
+  @apply border-slate-700 bg-slate-900 text-slate-100 hover:border-slate-500 hover:bg-slate-800;
+}
+.dark .btn-danger {
+  @apply border-red-400/40 bg-slate-900 text-red-400 hover:bg-red-400/10;
+}
+.dark .btn-ghost {
+  @apply text-slate-300 hover:bg-slate-800 hover:text-white;
+}
+.dark .chip {
+  @apply border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800;
+}
+.dark .skeleton {
+  @apply bg-slate-800;
+  background-image: linear-gradient(
+    90deg,
+    rgba(30, 41, 59, 0) 0%,
+    rgba(71, 85, 105, 0.6) 50%,
+    rgba(30, 41, 59, 0) 100%
+  );
+}
+/* Header/inputs that hard-code white backgrounds in small chrome elements. */
+.dark .bg-brand-soft {
+  background-color: #1e293b;
+}
+.dark .bg-white\/95 {
+  background-color: rgba(15, 23, 42, 0.95);
+}
+.dark .text-gray-300 {
+  color: #475569;
+}
+
+/* Component classes whose colours were inlined by @apply (so the utility
+   remaps above can't reach them). */
+.dark .field-label {
+  color: #cbd5e1;
+}
+.dark .link {
+  color: var(--brand);
+}
+.dark .field-input:focus {
+  border-color: var(--brand);
+}
+/* Focus rings offset against a dark surface, not the light default (#fff). */
+.dark .btn:focus-visible,
+.dark .ring-offset-1 {
+  --tw-ring-offset-color: #0f172a;
+}
+/* On dark, a shadow lift is invisible — read as a background/border lift. */
+.dark .card-hover:hover {
+  background-color: #16233c;
+  border-color: rgba(77, 139, 245, 0.65);
+}
+
+/* Brand accents: #0a66c2 is too dark against slate surfaces — use the dark
+   brand (--brand: #4d8bf5) and translucent blue tints instead. */
+.dark .text-brand,
+.dark .hover\:text-brand:hover {
+  color: var(--brand);
+}
+.dark .text-brand-dark,
+.dark .hover\:text-brand-dark:hover {
+  color: #93c5fd;
+}
+.dark .text-brand-dark\/60 {
+  color: rgba(147, 197, 253, 0.65);
+}
+.dark .border-brand,
+.dark .hover\:border-brand:hover {
+  border-color: var(--brand);
+}
+.dark .border-brand\/20 {
+  border-color: rgba(77, 139, 245, 0.25);
+}
+.dark .border-brand\/30 {
+  border-color: rgba(77, 139, 245, 0.35);
+}
+.dark .border-brand\/50 {
+  border-color: rgba(77, 139, 245, 0.5);
+}
+.dark .bg-brand\/5 {
+  background-color: rgba(77, 139, 245, 0.08);
+}
+.dark .bg-brand\/10 {
+  background-color: rgba(77, 139, 245, 0.14);
+}
+.dark .ring-brand {
+  --tw-ring-color: var(--brand);
+}
+
+/* Status tints (banners, toasts, badges): translucent dark backgrounds with
+   light text so they stay legible on slate surfaces. */
+.dark .bg-red-50 {
+  background-color: rgba(248, 113, 113, 0.1);
+}
+.dark .bg-red-100 {
+  background-color: rgba(248, 113, 113, 0.15);
+}
+.dark .bg-amber-50 {
+  background-color: rgba(251, 191, 36, 0.1);
+}
+.dark .bg-amber-100 {
+  background-color: rgba(251, 191, 36, 0.15);
+}
+.dark .bg-green-50 {
+  background-color: rgba(74, 222, 128, 0.1);
+}
+.dark .bg-green-100 {
+  background-color: rgba(74, 222, 128, 0.15);
+}
+.dark .bg-blue-100 {
+  background-color: rgba(96, 165, 250, 0.15);
+}
+.dark .bg-indigo-100 {
+  background-color: rgba(129, 140, 248, 0.15);
+}
+.dark .bg-sky-100 {
+  background-color: rgba(56, 189, 248, 0.15);
+}
+.dark .bg-emerald-100 {
+  background-color: rgba(52, 211, 153, 0.15);
+}
+.dark .border-red-200 {
+  border-color: rgba(248, 113, 113, 0.4);
+}
+.dark .border-amber-200 {
+  border-color: rgba(251, 191, 36, 0.4);
+}
+.dark .border-amber-300 {
+  border-color: rgba(251, 191, 36, 0.5);
+}
+.dark .border-green-200 {
+  border-color: rgba(74, 222, 128, 0.4);
+}
+.dark .text-red-600,
+.dark .hover\:text-red-600:hover {
+  color: #f87171;
+}
+.dark .text-red-700,
+.dark .text-red-800 {
+  color: #fca5a5;
+}
+.dark .text-amber-600 {
+  color: #fbbf24;
+}
+.dark .text-amber-700,
+.dark .text-amber-800 {
+  color: #fcd34d;
+}
+.dark .text-green-700,
+.dark .text-green-800 {
+  color: #86efac;
+}
+.dark .text-blue-800 {
+  color: #93c5fd;
+}
+.dark .text-indigo-700,
+.dark .text-indigo-800 {
+  color: #a5b4fc;
+}
+.dark .text-sky-700 {
+  color: #7dd3fc;
+}
+.dark .text-emerald-700 {
+  color: #6ee7b7;
+}
+
+/* Hover utilities: compiled as separate `:hover` classes, so the static
+   remaps above don't cover them. Values mirror the static dark remaps —
+   hovering must lift the dark surface, never flash the light colour. */
+.dark .hover\:bg-gray-100:hover {
+  background-color: #1e293b;
+}
+.dark .hover\:bg-brand-soft:hover {
+  background-color: #1e293b;
+}
+.dark .hover\:bg-brand\/20:hover {
+  background-color: rgba(96, 165, 250, 0.25);
+}
+.dark .hover\:bg-red-50:hover {
+  background-color: rgba(248, 113, 113, 0.12);
+}
+.dark .hover\:bg-amber-100:hover {
+  background-color: rgba(251, 191, 36, 0.15);
+}
+.dark .hover\:text-gray-900:hover {
+  color: #f1f5f9;
+}
+.dark .hover\:text-gray-700:hover {
+  color: #cbd5e1;
+}
+.dark .hover\:text-gray-600:hover {
+  color: #b0bccd;
+}
+/* Base icons are remapped to slate-600 (#475569); hover brightens them. */
+.dark .hover\:text-gray-400:hover {
+  color: #94a3b8;
+}

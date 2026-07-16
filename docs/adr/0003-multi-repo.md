@@ -1,6 +1,9 @@
 # ADR 0003 — Multi-repo (not monorepo)
 
-**Status:** Accepted · 2026-06
+**Status:** ~~Accepted · 2026-06~~ · **Superseded by [0010](0010-monorepo.md) (2026-07)**
+
+> This decision was reversed. CRAFT-ON is now a single monorepo — see
+> [ADR 0010](0010-monorepo.md). The content below is kept for history.
 
 ## Context
 Owner preference: separate repositories. This repo (`crafton`) holds infra + docs +

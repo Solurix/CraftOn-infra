@@ -14,19 +14,26 @@ one place. Workers use it for free; contractors (工務店 / site supervisors) p
 
 ## What this repository is
 
-This is the **`crafton` core repo**: it holds **infrastructure (Terraform),
-documentation, and project-wide "source of truth" material**. Application code
-lives in **separate repositories** — `crafton-api` (FastAPI backend) and
-`crafton-web` (Next.js PWA), both of which exist and are deployed — see
-[`docs/10-repo-strategy.md`](docs/10-repo-strategy.md).
+This is the **CRAFT-ON monorepo** — backend, frontend, infrastructure, and docs in
+one place (ADR 0010; consolidated from the former `crafton`/`crafton-api`/`crafton-web`/
+`crafton-mobile` repos). See [`docs/10-repo-strategy.md`](docs/10-repo-strategy.md).
 
 ```
-crafton/                  ← you are here (infra + docs + governance)
+CraftOn-infra/            ← the monorepo
+├── api/                  ← FastAPI backend (SQLAlchemy + Alembic, pytest)
+├── web/                  ← Next.js PWA (workers + contractors + gated /admin)
+├── infra/terraform/      ← GCP infrastructure as code (environments + modules)
 ├── docs/                 ← all planning & design docs (start here)
-├── infra/terraform/      ← GCP infrastructure as code
+├── scripts/              ← check.sh (quality gate) + api.sh helper
+├── Makefile              ← single containerized entrypoint (make up / check / tf-*)
+├── docker-compose.yml    ← local stack: db + api + web
 ├── CLAUDE.md             ← guide for GenAI-driven development sessions
 └── README.md
 ```
+
+Quick start: `cp .env.example .env && make up` (web → http://localhost:53000,
+api → http://localhost:58000). `make help` lists all targets. There is **no mobile
+app** — the installable PWA is the Android/iOS story.
 
 ## Start here
 
@@ -54,7 +61,7 @@ crafton/                  ← you are here (infra + docs + governance)
   `crafton-dev-500709`, Cloud Run in `asia-northeast1`); go-live prep remaining.
   See [`docs/STATUS.md`](docs/STATUS.md) for the live picture.
 - **Decisions locked:** GCP, Terraform, Python/FastAPI backend, Next.js PWA frontend
-  (web/PWA first), Vertex AI (Gemini) for AI features, multi-repo, region
+  (web/PWA first), Vertex AI (Gemini) for AI features, single monorepo, region
   `asia-northeast1` (Tokyo), launch area Greater Tokyo. App default language Japanese
   with full English; development language English.
 - **Next:** go-live prep — real Firebase auth wiring (dev still runs fake auth),

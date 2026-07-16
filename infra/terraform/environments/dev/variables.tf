@@ -54,7 +54,9 @@ variable "github_owner" {
 }
 
 variable "github_deploy_repos" {
-  type        = list(string)
-  default     = ["Solurix/CraftOn-api", "Solurix/CraftOn-web"]
+  type = list(string)
+  # Single monorepo: api, web, infra, and docs all live in Solurix/CraftOn-infra.
+  # (Superseded the multi-repo list CraftOn-api + CraftOn-web — see docs/adr/0010-monorepo.md.)
+  default     = ["Solurix/CraftOn-infra"]
   description = "owner/repo allowed to impersonate the deployer SA for Cloud Run deploys."
 }

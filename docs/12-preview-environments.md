@@ -1,18 +1,18 @@
 # 12 — Per-PR preview environments
 
-Every pull request on `crafton-api` and `crafton-web` gets its own deployed preview:
-a **standalone, per-PR Cloud Run service** (`crafton-api-dev-pr<N>` /
-`crafton-web-dev-pr<N>`) reachable at its own URL. The **API** preview is backed by
-its **own isolated database** (`crafton_pr<N>` on the shared `crafton-dev` Cloud SQL
-instance), migrated and smoke-tested in isolation. The **web** preview is baked to
-point at the shared live API by default, or — opt-in — at a specific **API preview**
-so a coordinated api+web change previews end-to-end (see *Pairing a web preview with
-an API preview* below). Prod (the live `crafton-api-dev` / `crafton-web-dev` services
-and the `crafton` database) is **never touched** by a PR. On PR close the whole
-preview service (and, for the API, its database) is torn down.
+Every pull request in the monorepo gets **two** deployed previews from one pipeline:
+a **standalone, per-PR Cloud Run service** for each of api and web
+(`crafton-api-dev-pr<N>` / `crafton-web-dev-pr<N>`), each at its own URL. The **API**
+preview is backed by its **own isolated database** (`crafton_pr<N>` on the shared
+`crafton-dev` Cloud SQL instance), migrated and smoke-tested in isolation. The **web**
+preview is baked to point at **this PR's own API preview** (auto-paired), so every PR —
+including a coordinated api+web change — previews end-to-end with no opt-in needed.
+Prod (the live `crafton-api-dev` / `crafton-web-dev` services and the `crafton`
+database) is **never touched** by a PR. On PR close both preview services (and the
+API's database) are torn down.
 
-This adapts MuchoKarte's monorepo playbook to CraftOn's **multi-repo** layout. The
-building blocks below note where CraftOn deliberately diverges.
+This adapts MuchoKarte's preview playbook. The building blocks below note where CraftOn
+deliberately diverges.
 
 > ## ⚠️ Why a separate service per PR (not a tagged revision)
 >
@@ -42,80 +42,63 @@ building blocks below note where CraftOn deliberately diverges.
 ## Mental model
 
 ```
-PR opened/synchronized
-  ├─ crafton-api  → preview-deploy.yml (pull_request_target, YAML from main)
+PR opened/synchronized → preview-deploy.yml (pull_request_target, YAML from main)
+  ├─ job `api`
   │     1. gcloud sql databases create crafton_pr<N>          ← isolated DB
-  │     2. docker build + push  api:pr<N>-<sha>
+  │     2. docker build + push  api:pr<N>-<sha>   (context ./api)
   │     3. gcloud run deploy crafton-api-dev-pr<N>            ← STANDALONE service
   │          • runtime SA + Cloud SQL instance + crafton-db-url secret attached
   │          • --set-env-vars: full preview env, incl. CRAFTON_DB_NAME=crafton_pr<N>
   │          • --allow-unauthenticated (reachable like the public dev service)
   │          • migrations run at container BOOT against crafton_pr<N> (advisory-locked)
   │     4. smoke test: /openapi.json → signup → login → /me  (against the isolated DB)
-  │     5. comment the preview URL + DB name on the PR
-  └─ crafton-web  → preview-deploy.yml
-        1. resolve the API URL to bake: shared live crafton-api-dev by default, or the
-           paired API preview service crafton-api-dev-pr<M>'s URL if the PR declares
-           api-pr:<M> (label api-pr-<M> or a PR-body line); falls back to live if
-           unreachable
-        2. docker build + push  web:pr<N>-<sha>  (NEXT_PUBLIC_API_BASE_URL baked)
+  │     5. comment the API preview URL + DB name on the PR
+  │     → outputs api_url
+  └─ job `web`  (needs: api)
+        1. bake NEXT_PUBLIC_API_BASE_URL = this PR's api_url (auto-paired)
+        2. docker build + push  web:pr<N>-<sha>   (context ./web)
         3. gcloud run deploy crafton-web-dev-pr<N>            ← STANDALONE service
-        4. smoke test: GET / → 2xx/3xx ; comment the URL
+        4. smoke test: GET / → 2xx/3xx ; comment the web preview URL
 
-PR merged → push to main → existing ci.yml `deploy` job (prod `crafton` DB); the deploy
-             also scrubs any historical preview leak (see "Self-heal" below)
-PR closed → preview-cleanup.yml → delete crafton-<svc>-dev-pr<N> service → drop crafton_pr<N> (api only)
+PR merged → push to main → ci.yml deploy-api / deploy-web (only the changed service;
+             prod `crafton` DB); the deploy also scrubs any historical preview leak
+PR closed → preview-cleanup.yml → delete both crafton-<svc>-dev-pr<N> services → drop crafton_pr<N>
 ```
 
 **Deterministic URL.** Each preview is a normal Cloud Run service, so its URL is read
 with `gcloud run services describe crafton-<svc>-dev-pr<N> --format='value(status.url)'`.
-The API smoke test and the web build's paired-API lookup both resolve the API preview's
-URL this way. (This replaces the old `https://pr<N>---<host>` tag-URL scheme.)
+The `api` job exposes its URL as a job output that the `web` job bakes into the image.
+(This replaces the old `https://pr<N>---<host>` tag-URL scheme.)
 
-## Pairing a web preview with an API preview
+## Web ↔ API pairing (automatic)
 
-By default the web preview bakes the **shared live** `crafton-api-dev` URL — a web-only
-PR doesn't change the API, so it previews against dev. When a change spans **both** repos,
-opt the web PR into its matching API preview so the two isolated services talk to each
-other:
-
-- Add either a label **`api-pr-<M>`** or a line **`api-pr: <M>`** to the **web** PR
-  description, where `<M>` is the **crafton-api** PR number. The repos are separate, so the
-  api and web PR numbers differ — name the API PR explicitly (there is no auto-matching).
-- `preview-deploy.yml` parses the hint — in a github-script sandbox, because the PR body is
-  untrusted input — resolves the `crafton-api-dev-pr<M>` **service URL**, and bakes it
-  instead of the live URL. It first polls that preview's `/openapi.json`; if it isn't
-  reachable (API preview not deployed yet, or already torn down) it **falls back to the live
-  API** and says so in the PR comment rather than failing the build. Re-run once the API
-  preview is up.
-- The web preview's own URL is its `crafton-web-dev-pr<N>` service URL; the PR comment states
-  which API was baked (paired `pr<M>` vs shared live).
-- The trigger includes **`edited`**, so changing the hint in the PR body repoints on the next
-  run without a new commit. Re-deploying just rolls a new revision of the standalone
-  `crafton-web-dev-pr<N>` service (no `--revision-suffix` uniqueness dance needed anymore).
+In the monorepo, api and web deploy from the **same PR in one workflow**, so the web
+preview is **always baked against this PR's own API preview** (`crafton-api-dev-pr<N>`):
+the `web` job `needs` the `api` job and reads its `api_url` output. A coordinated api+web
+change therefore previews end-to-end with **no opt-in label** — this replaces the old
+multi-repo `api-pr:` hint, which existed only because the two repos deployed independently
+and couldn't share a run.
 
 **No API-side change is needed.** `crafton-api` CORS is `allow_origins=["*"]` with
-`allow_credentials=False`, so a browser on any preview web origin can already call any
-API preview. The API preview keeps its own isolated `crafton_pr<M>` database, so a paired
-web preview exercises the full isolated stack. (Previews run `CRAFTON_STORAGE_MODE=fake`,
-so cross-origin uploads to the GCS bucket aren't exercised — the bucket's CORS allow-list
-does not need the preview origins.)
+`allow_credentials=False`, so the preview web origin can call its paired API preview. The
+API preview keeps its own isolated `crafton_pr<N>` database, so the web preview exercises
+the full isolated stack. (Previews run `CRAFTON_STORAGE_MODE=fake`, so cross-origin uploads
+to the GCS bucket aren't exercised — the bucket's CORS allow-list needs no preview origins.)
 
-Still build-time only: repointing bakes a fresh image (as every web preview already does). A
-follow-up could make the API base URL runtime-configurable (serve it from the server into
-`window.__ENV__`) so one image repoints via a runtime env var with no rebuild — not needed for
-the pairing use-case, so deferred.
+The baked API URL is build-time (as every web preview is). A follow-up could serve it at
+runtime (`window.__ENV__`) so one image repoints with no rebuild — not needed here, so
+deferred.
 
 ## Self-heal on the live service
 
-The main-branch `deploy` job in each app's `ci.yml` scrubs any preview config that may have
-leaked onto the live service **before** the separate-service model existed:
+The main-branch deploy jobs in `ci.yml` scrub any preview config that may have leaked onto
+the live service **before** the separate-service model existed:
 
-- **crafton-api** `deploy`: `--remove-env-vars CRAFTON_DB_NAME --remove-labels preview-pr`
-  and re-asserts `--update-env-vars CRAFTON_STORAGE_MODE=gcs` (the canonical dev value from
+- **`deploy-api`**: `--remove-env-vars CRAFTON_DB_NAME --remove-labels preview-pr` and
+  re-asserts `--update-env-vars CRAFTON_STORAGE_MODE=gcs` (the canonical dev value from
   `environments/dev/main.tf`). So even a still-wedged live service heals on the next merge to
   main. These flags are no-ops once the service is clean.
-- **crafton-web** `deploy`: `--remove-labels preview-pr` (web previews never set a DB env, so
+- **`deploy-web`**: `--remove-labels preview-pr` (web previews never set a DB env, so
   there's nothing else to scrub).
 
 With previews now on their own services this can't recur; the scrub is a cheap safety net for
@@ -123,12 +106,12 @@ the historical leak and any stray manual `gcloud`.
 
 ## What lives where
 
-| Block | Files | Repo |
-|---|---|---|
-| App plumbing (db-name swap + advisory lock) | `app/core/config.py`, `app/db/session.py`, `migrations/env.py` | crafton-api |
-| Workflows | `.github/workflows/preview-deploy.yml`, `preview-cleanup.yml`; `ci.yml` (migration guard + self-heal) | crafton-api, crafton-web |
-| Governance | `.github/CODEOWNERS` | crafton-api, crafton-web |
-| IAM | `infra/terraform/environments/dev/cicd.tf` (`craftonPreviewDbManager` role; deployer `roles/run.admin` covers per-PR service create/delete + public IAM) | crafton-infra |
+| Block | Files (all in this monorepo) |
+|---|---|
+| App plumbing (db-name swap + advisory lock) | `api/app/core/config.py`, `api/app/db/session.py`, `api/migrations/env.py` |
+| Workflows | `.github/workflows/preview-deploy.yml`, `preview-cleanup.yml`; `ci.yml` (api migration guard + deploy self-heal) |
+| Governance | `.github/CODEOWNERS` |
+| IAM | `infra/terraform/environments/dev/cicd.tf` (`craftonPreviewDbManager` role; deployer `roles/run.admin` covers per-PR service create/delete + public IAM) |
 
 ## Block A — app plumbing (crafton-api)
 
@@ -160,8 +143,9 @@ no ordering constraint anymore (no tag to remove first). Cleanup also exposes
 `workflow_dispatch` (input `pr_number`) so the owner can reclaim a leaked preview from
 the Actions tab.
 
-`ci.yml` keeps the **"exactly one migration head"** guard (two heads → rebase/merge
-the graph before it can deploy, since previews and prod both migrate at boot) and adds
+The `api` job in `ci.yml` keeps the **"exactly one migration head"** guard (two heads →
+rebase/merge the graph before it can deploy, since previews and prod both migrate at boot)
+plus the upgrade/downgrade round-trip; the main-branch `deploy-api`/`deploy-web` jobs add
 the **self-heal** scrub described above.
 
 ## CraftOn-specific divergences from the MuchoKarte playbook
@@ -190,9 +174,10 @@ the **self-heal** scrub described above.
    prerequisite for the DB step. The deployer's existing `roles/run.admin` already
    covers creating/deleting per-PR services and setting their public (`allUsers`
    invoker) IAM, so no extra role is needed for the service side.
-2. **Branch protection on `main`** in both app repos (GitHub UI): require a PR,
-   require review from Code Owners, required status checks (`lint-type-test`; the API
-   also runs the migration-head guard inside that job), no direct pushes.
+2. **Branch protection on `main`** (GitHub UI): require a PR, require review from Code
+   Owners, and set the single required status check to **`ci`** (the aggregating gate;
+   the path-filtered `api`/`web`/`smoke` jobs roll up into it, so requiring individual
+   job names would hang on filtered-out jobs). No direct pushes.
 3. Because the workflows run from `main` (`pull_request_target`), a pipeline change
    only takes effect after it's merged — the PR that introduces it can't validate
    itself. App-code PRs take effect immediately (built from PR head).

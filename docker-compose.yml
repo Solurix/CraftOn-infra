@@ -1,0 +1,75 @@
+# Local dev stack for the CRAFT-ON monorepo: db + api + web.
+# `name` groups the containers under "crafton" in the Docker dashboard.
+# Host ports are offset (55432 / 58000 / 53000) to avoid collisions with other
+# stacks. Production uses Cloud Run + Cloud SQL (see infra/terraform/).
+name: crafton
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crafton
+      POSTGRES_PASSWORD: crafton
+      POSTGRES_DB: crafton
+    ports:
+      - "55432:5432"
+    volumes:
+      - crafton_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crafton -d crafton"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      CRAFTON_ENV: ${CRAFTON_ENV:-local}
+      CRAFTON_DATABASE_URL: postgresql+psycopg://crafton:crafton@db:5432/crafton
+      CRAFTON_AUTH_MODE: ${CRAFTON_AUTH_MODE:-fake}
+      CRAFTON_STORAGE_MODE: ${CRAFTON_STORAGE_MODE:-fake}
+      CRAFTON_DEBUG: ${CRAFTON_DEBUG:-true}
+      PORT: "8080"
+    ports:
+      - "58000:8080"
+    volumes:
+      - ./api:/app
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/readyz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    image: node:20-bookworm-slim
+    working_dir: /app
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      # NEXT_PUBLIC_* are read by the browser, so this must be the host-visible URL.
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:58000}
+      NEXT_PUBLIC_AUTH_MODE: ${NEXT_PUBLIC_AUTH_MODE:-fake}
+      NEXT_TELEMETRY_DISABLED: "1"
+      WATCHPACK_POLLING: "true"
+      # Run the dev server on 53000 inside the container too, so the announced
+      # URL matches the mapped host port.
+      PORT: "53000"
+    ports:
+      - "53000:53000"
+    volumes:
+      - ./web:/app
+      - web_node_modules:/app/node_modules
+    command: sh -c "npm ci && npm run dev"
+
+volumes:
+  crafton_pgdata:
+  web_node_modules:

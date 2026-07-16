@@ -1,0 +1,262 @@
+name: ci
+
+# Monorepo CI. On PRs: path-filtered api/web/smoke jobs gate the merge via the
+# single aggregating `ci` check. On push to main: the changed service(s) deploy
+# to Cloud Run. Terraform apply stays manual (see infra/terraform/).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Classify the diff so heavy jobs only run when the code they cover changed.
+  # A web-only PR skips pytest; an infra/docs PR skips both. Editing this workflow
+  # forces everything to run. The always-run `ci` gate below is the single required
+  # check, so skipped jobs never block a merge — require `ci`, not the job names.
+  changes:
+    name: detect changed paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+      smoke: ${{ steps.filter.outputs.smoke }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'api/**'
+              - '.github/workflows/ci.yml'
+            web:
+              - 'web/**'
+              - '.github/workflows/ci.yml'
+            smoke:
+              - 'api/**'
+              - 'docker-compose.yml'
+              - 'Makefile'
+              - 'scripts/**'
+              - '.github/workflows/ci.yml'
+
+  api:
+    name: api (ruff + mypy + migrations + pytest)
+    needs: changes
+    if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.api == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      CRAFTON_AUTH_MODE: fake
+      CRAFTON_ENV: ci
+      CRAFTON_DATABASE_URL: postgresql+psycopg://crafton:crafton@localhost:5432/crafton
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: crafton
+          POSTGRES_PASSWORD: crafton
+          POSTGRES_DB: crafton
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U crafton -d crafton"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Create virtualenv and install dependencies
+        run: |
+          uv venv --python 3.11
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+          uv pip install -e ".[dev]"
+      - name: Lint (ruff)
+        run: ruff check .
+      - name: Type-check (mypy)
+        run: mypy app
+      - name: i18n ja/en parity check
+        run: python -m app.core.i18n --check
+      - name: Exactly one migration head
+        run: test "$(alembic heads 2>/dev/null | grep -c '(head)')" -eq 1
+      - name: Migrations apply (upgrade head)
+        run: alembic upgrade head
+      - name: Migrations reverse (downgrade base)
+        run: alembic downgrade base
+      - name: Tests (pytest)
+        run: pytest --cov=app --cov-report=term-missing
+
+  web:
+    name: web (i18n + eslint + tsc + vitest + build)
+    needs: changes
+    if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.web == 'true' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install deps
+        run: npm ci
+      - name: i18n ja/en parity check
+        run: npm run i18n:check
+      - name: Lint
+        run: npm run lint
+      - name: Type-check
+        run: npm run typecheck
+      - name: Unit/component tests
+        run: npm test
+      - name: Production build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run build
+
+  # Boots the real containers the way `make smoke` does: builds the api image,
+  # starts db+api via docker compose (which runs `alembic upgrade head` on boot),
+  # and polls GET /readyz. Catches a broken Dockerfile, a startup import error, or
+  # a migration that fails against a fresh database — things unit tests can't.
+  smoke:
+    name: smoke (compose boot + /readyz)
+    needs: changes
+    if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.smoke == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Boot db+api and verify /readyz
+        run: make smoke
+      - name: Full api logs on failure
+        if: failure()
+        run: docker compose logs api
+
+  # Single required status check. Always runs; passes only if every job that
+  # actually ran succeeded. Skipped jobs (path-filtered out) count as passing.
+  # Point branch protection at THIS check — `ci` — not the individual job names.
+  ci:
+    name: ci
+    needs: [changes, api, web, smoke]
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify no required job failed
+        run: |
+          echo "changes=${{ needs.changes.result }} api=${{ needs.api.result }} web=${{ needs.web.result }} smoke=${{ needs.smoke.result }}"
+          for r in \
+            "${{ needs.changes.result }}" \
+            "${{ needs.api.result }}" \
+            "${{ needs.web.result }}" \
+            "${{ needs.smoke.result }}"; do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
+              echo "::error::a required CI job did not pass (result=$r)"
+              exit 1
+            fi
+          done
+          echo "✓ all jobs that ran passed (skipped jobs are OK)"
+
+  # ── Continuous deployment (push to main only) ─────────────────────────────────
+  # The changed service rolls to Cloud Run. Each container runs `alembic upgrade
+  # head` (api) at boot, and Cloud Run only shifts traffic once the new revision is
+  # healthy. Auth is via Workload Identity Federation (no stored keys).
+  deploy-api:
+    name: deploy api
+    needs: changes
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.api == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT_ID: crafton-dev-500709
+      REGION: asia-northeast1
+      SERVICE: crafton-api-dev
+      IMAGE: asia-northeast1-docker.pkg.dev/crafton-dev-500709/crafton/api
+      WIF_PROVIDER: projects/784671749504/locations/global/workloadIdentityPools/github-actions/providers/github
+      DEPLOYER_SA: crafton-deployer@crafton-dev-500709.iam.gserviceaccount.com
+    steps:
+      - uses: actions/checkout@v4
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Configure docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+      - name: Build & push image
+        run: |
+          docker build --platform=linux/amd64 --provenance=false \
+            -t "$IMAGE:dev" -t "$IMAGE:${GITHUB_SHA}" ./api
+          docker push "$IMAGE:dev"
+          docker push "$IMAGE:${GITHUB_SHA}"
+      # Deploy and scrub any preview config that may have leaked onto the live
+      # service historically (see the preview workflow's notes). Self-heals on merge.
+      - name: Deploy to Cloud Run (migrates at startup, then serves)
+        run: |
+          gcloud run services update "$SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --image "$IMAGE:dev" \
+            --remove-env-vars CRAFTON_DB_NAME \
+            --update-env-vars CRAFTON_STORAGE_MODE=gcs \
+            --remove-labels preview-pr
+
+  deploy-web:
+    name: deploy web
+    needs: changes
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.web == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT_ID: crafton-dev-500709
+      REGION: asia-northeast1
+      SERVICE: crafton-web-dev
+      API_SERVICE: crafton-api-dev
+      IMAGE: asia-northeast1-docker.pkg.dev/crafton-dev-500709/crafton/web
+      AUTH_MODE: fake
+      WIF_PROVIDER: projects/784671749504/locations/global/workloadIdentityPools/github-actions/providers/github
+      DEPLOYER_SA: crafton-deployer@crafton-dev-500709.iam.gserviceaccount.com
+    steps:
+      - uses: actions/checkout@v4
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Configure docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+      - name: Resolve live API URL
+        id: api
+        run: |
+          url=$(gcloud run services describe "$API_SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')
+          if [ -z "$url" ]; then echo "API service not found"; exit 1; fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Build & push image
+        run: |
+          docker build --platform=linux/amd64 --provenance=false \
+            --build-arg NEXT_PUBLIC_API_BASE_URL="${{ steps.api.outputs.url }}" \
+            --build-arg NEXT_PUBLIC_AUTH_MODE="$AUTH_MODE" \
+            -t "$IMAGE:dev" -t "$IMAGE:${GITHUB_SHA}" ./web
+          docker push "$IMAGE:dev"
+          docker push "$IMAGE:${GITHUB_SHA}"
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run services update "$SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --image "$IMAGE:dev" \
+            --remove-labels preview-pr
