@@ -1,0 +1,35 @@
+# Code owners for the money/security/infra blast radius (CRAFT-ON monorepo).
+#
+# With branch protection "Require review from Code Owners" enabled on `main`,
+# these paths cannot be merged without the owner's review. `@Solurix` is the repo
+# owner — change it to the actual reviewer handle or a team (e.g. @Solurix/maintainers)
+# if that org uses teams.
+
+# ── CI/CD, infra, governance ──────────────────────────────────────────────────
+# The workflows hold the WIF trust + deploy steps; Terraform provisions the cloud.
+/.github/workflows/**    @Solurix
+/.github/CODEOWNERS      @Solurix
+/infra/**                @Solurix
+/docker-compose.yml      @Solurix
+/Makefile                @Solurix
+/scripts/**              @Solurix
+
+# The images the build SA executes — a malicious RUN could exfiltrate build creds.
+**/Dockerfile            @Solurix
+
+# ── Backend (api) ─────────────────────────────────────────────────────────────
+# Data safety: every schema change and the migration runner.
+/api/migrations/**       @Solurix
+# Secrets / env / DB wiring and auth.
+/api/app/core/config.py  @Solurix
+/api/app/core/auth.py    @Solurix
+/api/app/db/**           @Solurix
+# Dependencies = supply chain.
+/api/pyproject.toml      @Solurix
+
+# ── Frontend (web) ────────────────────────────────────────────────────────────
+# Build config that bakes NEXT_PUBLIC_* (incl. the API URL) into the image.
+/web/next.config.mjs     @Solurix
+# Dependencies = supply chain.
+/web/package.json        @Solurix
+/web/package-lock.json   @Solurix

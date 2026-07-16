@@ -4,17 +4,18 @@
 > session reads after `CLAUDE.md`. Keep it short: append your session to
 > "Recent sessions" and push older entries down into [`CHANGELOG.md`](CHANGELOG.md).
 
-_Last updated: 2026-07-11_ · History: [`docs/CHANGELOG.md`](CHANGELOG.md)
+_Last updated: 2026-07-16_ · History: [`docs/CHANGELOG.md`](CHANGELOG.md)
 
 ## Current state
 
 **Phase 1 — feature-complete and deployed to dev.** The full cycle works end-to-end
 (post job → apply → confirm → check-in → check-out → approve completion → reviews),
 with admin vetting, the visa/insurance gates, server-side contact masking, and the
-¥3,000 fee record. Both app repos are green and **deployed to the GCP dev project**
+¥3,000 fee record. Code now lives in a **single monorepo** (`api/`, `web/`, `infra/`,
+`docs/` — ADR 0010); both services are green and **deployed to the GCP dev project**
 `crafton-dev-500709` (`asia-northeast1`) on Cloud Run, with Cloud SQL, Storage, and
-Secret Manager wired; CI/CD auto-deploys on push to `main`, and every PR gets a
-preview environment (`docs/12-preview-environments.md`). **Auth is still `fake`**
+Secret Manager wired; CI/CD auto-deploys the changed service on push to `main`, and
+every PR gets both previews (`docs/12-preview-environments.md`). **Auth is still `fake`**
 (`CRAFTON_AUTH_MODE` / `NEXT_PUBLIC_AUTH_MODE`) — real Firebase wiring is the next
 go-live step. Known issue: the API's `/healthz` returns a GFE-level 404 (`/readyz`
 is the working health path and what Cloud Run probes).
@@ -46,6 +47,21 @@ is the working health path and what Cloud Run probes).
 All locked decisions are in `docs/adr/`. Summary table in `CLAUDE.md`.
 
 ## Recent sessions
+
+### 2026-07-16 — Consolidated into a single monorepo 📦
+Merged `crafton-api` + `crafton-web` into this repo as `api/` and `web/` (clean copy),
+dropped `crafton-mobile` (the PWA covers Android/iOS), and reshaped the repo to mirror
+the sibling MuchoKarte project: root `Makefile`, `docker-compose.yml` (db+api+web on
+offset ports 55432/58000/53000), `.env.example`, `scripts/check.sh`. CI is now one
+path-filtered `ci.yml` (api/web/smoke jobs → single required `ci` check) with path-gated
+deploy-api/deploy-web on push to main; one merged `preview-deploy.yml` deploys both
+`crafton-{api,web}-dev-pr<N>` per PR and auto-pairs web → this PR's api preview (no more
+`api-pr:` opt-in); merged `preview-cleanup.yml` + path-scoped CODEOWNERS. ADR 0010
+supersedes 0003; repo-strategy, both app `CLAUDE.md`s, and the preview doc updated to
+intra-repo paths. Terraform WIF `github_deploy_repos` collapsed to `Solurix/CraftOn-infra`.
+**Owner action:** `make tf-apply` to apply that WIF change so Actions from the monorepo
+can deploy/preview (until applied, they fail auth). Kept the existing
+`environments/{dev,prod}`+`modules` Terraform (dev is live) — not flattened.
 
 ### 2026-07-12 — Job editing, check-in window, approval fixes, dark mode 🌙
 `crafton-api`: PATCH /jobs/{id} now enforces `job_edit_cutoff_hours` (12h default),

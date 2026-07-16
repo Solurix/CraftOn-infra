@@ -1,0 +1,57 @@
+name: preview-cleanup
+
+# Tear down a PR's previews: delete the standalone `crafton-api-dev-pr<N>` and
+# `crafton-web-dev-pr<N>` services and drop the isolated `crafton_pr<N>` database.
+# Runs on PR close; workflow_dispatch lets the owner reclaim a leaked preview by
+# number from the Actions tab (the bot may lack actions:write to self-trigger).
+
+on:
+  pull_request_target:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number whose previews should be torn down
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: crafton-dev-500709
+      REGION: asia-northeast1
+      WIF_PROVIDER: projects/784671749504/locations/global/workloadIdentityPools/github-actions/providers/github
+      DEPLOYER_SA: crafton-deployer@crafton-dev-500709.iam.gserviceaccount.com
+      SQL_INSTANCE: crafton-dev
+      PR: ${{ github.event.inputs.pr_number || github.event.number }}
+    steps:
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # Best-effort each step, so a re-run on an already-clean PR still succeeds.
+      - name: Delete api preview service
+        run: |
+          gcloud run services delete "crafton-api-dev-pr${PR}" \
+            --project "$PROJECT_ID" --region "$REGION" --quiet \
+            || echo "service crafton-api-dev-pr${PR} already gone"
+
+      - name: Delete web preview service
+        run: |
+          gcloud run services delete "crafton-web-dev-pr${PR}" \
+            --project "$PROJECT_ID" --region "$REGION" --quiet \
+            || echo "service crafton-web-dev-pr${PR} already gone"
+
+      - name: Drop per-PR database
+        run: |
+          gcloud sql databases delete "crafton_pr${PR}" \
+            --instance="$SQL_INSTANCE" --project "$PROJECT_ID" --quiet \
+            || echo "database crafton_pr${PR} already gone"
