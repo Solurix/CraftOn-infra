@@ -103,10 +103,12 @@ tf: ## Run any terraform command against the dev config: make tf cmd="plan"
 
 tf-plan: ## Show the terraform plan against the dev project
 	@mkdir -p $(HOME)/.config/gcloud
+	$(TF_RUN_GCP) init -input=false
 	$(TF_RUN_GCP) plan
 
 tf-apply: ## Apply terraform to the dev project (auto-approved)
 	@mkdir -p $(HOME)/.config/gcloud
+	$(TF_RUN_GCP) init -input=false
 	$(TF_RUN_GCP) apply -auto-approve
 
 # ── Cloud dev env start/stop (Cloud SQL is the only idle cost) ─────────────────
@@ -118,10 +120,12 @@ SQL_INSTANCE ?= crafton-dev
 
 gcp-stop: ## Stop the cloud dev env (parks Cloud SQL to cut idle cost)
 	@mkdir -p $(HOME)/.config/gcloud
+	$(TF_RUN_GCP) init -input=false
 	$(TF_RUN_GCP) apply -auto-approve -var=sql_stopped=true
 
 gcp-start: ## Start the cloud dev env (resumes Cloud SQL)
 	@mkdir -p $(HOME)/.config/gcloud
+	$(TF_RUN_GCP) init -input=false
 	$(TF_RUN_GCP) apply -auto-approve -var=sql_stopped=false
 
 gcp-status: ## Show the cloud dev env's Cloud SQL state
