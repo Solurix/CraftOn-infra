@@ -4,7 +4,7 @@
 > session reads after `CLAUDE.md`. Keep it short: append your session to
 > "Recent sessions" and push older entries down into [`CHANGELOG.md`](CHANGELOG.md).
 
-_Last updated: 2026-07-16_ · History: [`docs/CHANGELOG.md`](CHANGELOG.md)
+_Last updated: 2026-11-26_ · History: [`docs/CHANGELOG.md`](CHANGELOG.md)
 
 ## Current state
 
@@ -47,6 +47,15 @@ is the working health path and what Cloud Run probes).
 All locked decisions are in `docs/adr/`. Summary table in `CLAUDE.md`.
 
 ## Recent sessions
+
+### 2026-11-26 — Artifact Registry cleanup policy for dev images 🧹
+The `crafton` Docker repo had no cleanup policy, so every main push and PR preview
+image (44 versions, ~1.4 GB) was kept forever and billed as storage. Added cleanup
+policies in `infra/terraform/environments/dev/main.tf`: always keep `dev`-tagged
+images (what `crafton-api-dev` / `crafton-web-dev` run), keep the newest 5 versions
+per package, delete everything else older than 14 days. A PR preview left idle for
+more than 14 days may lose its image; re-push the PR to rebuild it. Takes effect on
+the next `make tf-apply`.
 
 ### 2026-07-16 — Consolidated into a single monorepo 📦
 Merged `crafton-api` + `crafton-web` into this repo as `api/` and `web/` (clean copy),

@@ -14,6 +14,37 @@ resource "google_artifact_registry_repository" "containers" {
   format        = "DOCKER"
   description   = "CraftOn app container images (api, web)."
 
+  # Images pile up (one api+web pair per main push and per PR push) and storage is
+  # billed. Main-branch deploys and PR previews share the `api`/`web` packages, so:
+  # always keep whatever carries the mutable `dev` tag (what crafton-*-dev runs),
+  # keep the newest 5 versions per package, and delete anything else older than
+  # 14 days. KEEP wins over DELETE. A PR preview untouched for >14 days may lose its
+  # image; re-push the PR to rebuild it.
+  cleanup_policy_dry_run = false
+  cleanup_policies {
+    id     = "keep-deployed-dev"
+    action = "KEEP"
+    condition {
+      tag_state    = "TAGGED"
+      tag_prefixes = ["dev"]
+    }
+  }
+  cleanup_policies {
+    id     = "keep-recent"
+    action = "KEEP"
+    most_recent_versions {
+      keep_count = 5
+    }
+  }
+  cleanup_policies {
+    id     = "delete-older-than-14d"
+    action = "DELETE"
+    condition {
+      tag_state  = "ANY"
+      older_than = "1209600s"
+    }
+  }
+
   depends_on = [module.services]
 }
 
